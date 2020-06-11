@@ -113,7 +113,7 @@ class SerialCtx:
         self._idx = idx
         return b''.join(chunks)
 
-    def domain_from_bytes(self, raw: bytes) -> str:
+    def domain_from_bytes(self, raw: bytes) -> Tuple[str, int]:
         """convert raw-bytes into the given domain"""
         (idx, chunks, byte) = (0, [], 2)
         while byte > 1:
@@ -142,7 +142,7 @@ class SerialCtx:
         """
         convert given number in the relevant packed integer
 
-        :param fmt: struct pack format (ex: >I == 16bit-int)
+        :param fmt: struct pack format (ex: >H == 16bit-int)
         :param num: number being packed into bytes
         :return:    raw-bytes representing integer
         """
@@ -154,7 +154,7 @@ class SerialCtx:
         """
         convert given bytes into the relevant packed integer
 
-        :param fmt: struct pack format (ex: >I == 16bit-int)
+        :param fmt: struct pack format (ex: >H == 16bit-int)
         :param raw: raw-bytes being converted to integer
         :return:    number parsed from raw-bytes
         """
