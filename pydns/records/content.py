@@ -210,8 +210,6 @@ class A(RecordContent):
 class AAAA(RecordContent):
     const = Type.AAAA
 
-    #TODO: ipv6 parsing is broken at the moment, needs to be updated
-
     def __init__(self, ipv6: Union[str, bytes]):
         """
         :param ipv6: ipv6 address assigned to a-record
@@ -223,6 +221,6 @@ class AAAA(RecordContent):
         return self.ipv6.packed
 
     @classmethod
-    def from_bytes(cls, raw: bytes, ctx: SerialCtx) -> 'A':
+    def from_bytes(cls, raw: bytes, ctx: SerialCtx) -> 'AAAA':
         """convert raw-bytes into aaaa-record"""
-        return cls(ipv6=raw[:4])
+        return cls(ipv6=raw)
