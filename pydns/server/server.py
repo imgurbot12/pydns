@@ -4,14 +4,11 @@ dns server implementation using udp server baseclass
 import logging
 from typing import Callable, Optional
 
-from . import udp
+from . import udp, Handler
 from .. import DNSPacket, QR, RCode, SerialCtx
 
 #** Variables **#
-__all__ = ['Handler', 'Server']
-
-#: dns packet handler function type definition
-Handler = Callable[[DNSPacket], None]
+__all__ = ['UDPServer']
 
 #** Functions **#
 
@@ -65,7 +62,7 @@ class _Handler(udp.Handler):
             self.pkt.flags.rcode = RCode.ServerFailure
             self.transport.sendto(self.pkt.to_bytes(self.ctx), self.addr)
 
-class Server(udp.Server):
+class UDPServer(udp.Server):
     """dns server instance"""
 
     def __init__(self, addr: udp.Addr, handle: Optional[Handler] = None, **kw):
@@ -74,7 +71,7 @@ class Server(udp.Server):
         :param handle: dns packet handle function
         :param kw:     additional server arguments
         """
-        self.log = _make_logger('dns', logging.INFO)
+        self.log = _make_logger('dns.udp', logging.INFO)
         class Handler(_Handler):
             log     = self.log
             handler = handle or self.handle

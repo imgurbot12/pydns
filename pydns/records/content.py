@@ -93,47 +93,47 @@ class NS(_DomainRecordContent):
         self.nameserver = nameserver
 
 class PTR(_DomainRecordContent):
-    _key  = 'ptr_domain'
+    _key  = 'ptrname'
     const = Type.PTR
 
-    def __init__(self, ptr_domain: str):
+    def __init__(self, ptrname: str):
         """
-        :param ptr_domain: domain which points to some location in domain space
+        :param ptrname: domain which points to some location in domain space
         """
-        self.ptr_domain = ptr_domain
+        self.ptrname = ptrname
 
 class SOA(RecordContent):
     const = Type.SOA
 
     def __init__(self,
-        mname:   str,
-        rname:   str,
-        serial:  int,
-        refresh: int,
-        retry:   int,
-        expire:  int,
-        minimum: int,
+        mname:     str,
+        rname:     str,
+        serialver: int,
+        refresh:   int,
+        retry:     int,
+        expire:    int,
+        minimum:   int,
     ):
         """
-        :param mname:   domain name of original or primary source for zone
-        :param rname:   specifies mailbox of person responsible for this zone
-        :param serial:  version number of original copy of this zone
-        :param refresh: interval before the zone should be refreshed
-        :param retry:   interval before a failed refresh should be retried
-        :param expire:  upper interval on time elapsed before zone loses auth
-        :param minimum: minimum TTL field that should be exported w/ any RR
+        :param mname:     domain name of original or primary source for zone
+        :param rname:     specifies mailbox of person responsible for this zone
+        :param serialver: version number of original copy of this zone
+        :param refresh:   interval before the zone should be refreshed
+        :param retry:     interval before a failed refresh should be retried
+        :param expire:    upper interval on time elapsed before zone loses auth
+        :param minimum:   minimum TTL field that should be exported w/ any RR
         """
-        self.mname   = mname
-        self.rname   = rname
-        self.serial  = serial
-        self.refresh = refresh
-        self.retry   = retry
-        self.expire  = expire
-        self.minimum = minimum
+        self.mname      = mname
+        self.rname      = rname
+        self.serialver  = serialver
+        self.refresh    = refresh
+        self.retry      = retry
+        self.expire     = expire
+        self.minimum    = minimum
 
     def to_bytes(self, ctx: SerialCtx) -> bytes:
         """convert soa-record into raw-bytes"""
-        validate_int('serial', self.serial, 32)
+        validate_int('serialver', self.serialver, 32)
         validate_int('refresh', self.refresh, 32)
         validate_int('retry', self.retry, 32)
         validate_int('expire', self.expire, 32)
@@ -141,7 +141,7 @@ class SOA(RecordContent):
         return (
             ctx.domain_to_bytes(self.mname) +
             ctx.domain_to_bytes(self.rname) +
-            ctx.pack('>I', self.serial)     +
+            ctx.pack('>I', self.serialver)  +
             ctx.pack('>I', self.refresh)    +
             ctx.pack('>I', self.retry)      +
             ctx.pack('>I', self.expire)     +
@@ -157,7 +157,7 @@ class SOA(RecordContent):
         return cls(
             mname=mname,
             rname=rname,
-            serial=ctx.unpack('>I', raw[:4]),
+            serialver=ctx.unpack('>I', raw[:4]),
             refresh=ctx.unpack('>I', raw[4:8]),
             retry=ctx.unpack('>I', raw[8:12]),
             expire=ctx.unpack('>I', raw[12:16]),
@@ -171,11 +171,11 @@ class TXT(RecordContent):
         """
         :param txt: text to include in the record object
         """
-        self.text = text
+        self.txt = text
 
     def to_bytes(self, ctx: SerialCtx) -> bytes:
         """convert txt-record into raw-bytes"""
-        text = self.text.encode('utf-8')
+        text = self.txt.encode('utf-8')
         validate_int('len(text)', len(text), 8)
         ctx._idx += len(text)
         return ctx.pack('>B', len(text)) + text

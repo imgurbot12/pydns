@@ -10,11 +10,10 @@ from collections import namedtuple
 from typing import Tuple, Callable, Optional
 from concurrent.futures import Future, ThreadPoolExecutor
 
-#** Variables **#
-__all__ = ['Addr', 'Handler', 'Server']
+from . import Addr
 
-#: udp address schema
-Addr: Tuple[str, int] = namedtuple('host', 'port')
+#** Variables **#
+__all__ = ['Handler', 'Server']
 
 #** Classes **#
 
@@ -99,6 +98,7 @@ class Server:
             data, addr = self._s.recvfrom(recv)
             if not data:
                 continue
+            addr   = Addr(*addr)
             future = self._pool.submit(handler.datagram_received, data, addr)
             future.add_done_callback(lambda x: self._future_cb(x, handler))
         # shutdown set running to false
