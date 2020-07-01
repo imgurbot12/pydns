@@ -69,7 +69,7 @@ class MX(RecordContent):
 
     def to_bytes(self, ctx: SerialCtx) -> bytes:
         """convert mx-record into raw-bytes"""
-        validate_int('preference', preference, 16)
+        validate_int('preference', self.preference, 16)
         return (
             ctx.pack('>H', self.preference) +
             ctx.domain_to_bytes(self.exchange)
@@ -167,11 +167,11 @@ class SOA(RecordContent):
 class TXT(RecordContent):
     const = Type.TXT
 
-    def __init__(self, text: str):
+    def __init__(self, txt: str):
         """
         :param txt: text to include in the record object
         """
-        self.txt = text
+        self.txt = txt
 
     def to_bytes(self, ctx: SerialCtx) -> bytes:
         """convert txt-record into raw-bytes"""

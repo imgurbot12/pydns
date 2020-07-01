@@ -11,6 +11,6 @@ __all__ = ['Addr', 'Handler', 'UDPServer']
 Addr: Tuple[str, int] = namedtuple('Addr', ['host', 'port'])
 
 #: dns packet handler function type definition
-Handler = Callable[['DNSPacket'], None]
+Handler = Callable[['DNSPacket', Addr], None]
 
 from .server import UDPServer

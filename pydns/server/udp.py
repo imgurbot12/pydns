@@ -70,6 +70,8 @@ class Server:
         """check if error in response and run error-handler"""
         err = future.exception()
         if err is not None:
+            # run exception handler
+            handler.error_received(err)
             # print traceback for logs if enabled
             if self._kw['print_traceback']:
                 tb  = ''.join(traceback.format_tb(err.__traceback__))
@@ -78,8 +80,6 @@ class Server:
                     err.__class__.__name__,
                     err.args[0],
                 ), file=sys.stderr)
-            # run exception handler
-            handler.error_received(err)
 
     def _listen(self) -> socket.socket:
         """generate new udp socket"""
