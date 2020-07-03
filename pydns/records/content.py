@@ -14,7 +14,8 @@ __all__ = [
     'SOA',
     'TXT',
     'A',
-    'AAAA'
+    'AAAA',
+    'SRV'
 ]
 
 #** Classes **#
@@ -218,9 +219,47 @@ class AAAA(RecordContent):
 
     def to_bytes(self, ctx: SerialCtx) -> bytes:
         """convert aaaa-record into raw-bytes"""
+        ctx._idx += len(self.ipv6.packed)
         return self.ipv6.packed
 
     @classmethod
     def from_bytes(cls, raw: bytes, ctx: SerialCtx) -> 'AAAA':
         """convert raw-bytes into aaaa-record"""
+        ctx._idx += len(raw)
         return cls(ipv6=raw)
+
+class SRV(RecordContent):
+    const = Type.SRV
+
+    def __init__(self, priority: int, weight: int, port: int, target: str):
+        """
+        :param priority: priority of the target host
+        :param weight:   relative weight for those with same priority
+        :param port:     port of service on target
+        :param target:   domain of service being given
+        """
+        self.priority = priority
+        self.weight   = weight
+        self.port     = port
+        self.target   = target
+
+    def to_bytes(self, ctx: SerialCtx) -> bytes:
+        """convert srv-record into bytes"""
+        validate_int('priority', self.priority, 16)
+        validate_int('weight', self.weight, 16)
+        validate_int('port', self.port, 16)
+        return (
+            ctx.pack('>H', self.priority) +
+            ctx.pack('>H', self.weight)   +
+            ctx.pack('>H', self.port)     +
+            ctx.domain_to_bytes(self.target)
+        )
+
+    @classmethod
+    def from_bytes(cls, raw: bytes, ctx: SerialCtx) -> 'SRV':
+        """convert raw-bytes into srv-record"""
+        priority   = ctx.unpack('>H', raw[:2])
+        weight     = ctx.unpack('>H', raw[2:4])
+        port       = ctx.unpack('>H', raw[4:6])
+        target, _  = ctx.domain_from_bytes(raw[6:])
+        return cls(priority, weight, port, target)

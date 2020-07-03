@@ -119,11 +119,12 @@ class SerialCtx:
         while byte > 1:
             byte = raw[0] + 1
             # check if ptr exists at start of next chunk
-            domain = self._ptr_to_domain(raw)
-            if domain:
-                chunks.append( (idx, domain) )
-                idx += 2
-                break
+            if len(raw) >= 2:
+                domain = self._ptr_to_domain(raw)
+                if domain:
+                    chunks.append( (idx, domain) )
+                    idx += 2
+                    break
             # else, get length and collect chunk
             chunk, raw = (raw[1:byte], raw[byte:])
             if chunk:
@@ -214,6 +215,7 @@ class Type(enum.IntEnum):
     MX    = 15
     TXT   = 16
     AAAA  = 28
+    SRV   = 33
     OPT   = 41
 
 class Class(enum.Enum):
@@ -240,6 +242,7 @@ class QType(enum.IntEnum):
     MX    = 15
     TXT   = 16
     AAAA  = 28
+    SRV   = 33
     OPT   = 41
 
     AXFR  = 252

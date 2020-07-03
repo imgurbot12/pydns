@@ -13,7 +13,8 @@ __all__ = [
     'SOA',
     'TXT',
     'A',
-    'AAAA'
+    'AAAA',
+    'SRV'
 ]
 
 from .records import *
