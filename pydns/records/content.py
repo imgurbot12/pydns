@@ -1,3 +1,4 @@
+import datetime
 import ipaddress
 from typing import Union
 
@@ -15,7 +16,8 @@ __all__ = [
     'TXT',
     'A',
     'AAAA',
-    'SRV'
+    'SRV',
+    'TSIG',
 ]
 
 #** Classes **#
@@ -263,3 +265,79 @@ class SRV(RecordContent):
         port       = ctx.unpack('>H', raw[4:6])
         target, _  = ctx.domain_from_bytes(raw[6:])
         return cls(priority, weight, port, target)
+
+class TSIG:
+    const = Type.TSIG
+
+    def __init__(self,
+        alg_name:    str,
+        time_signed: datetime.datetime,
+        fudge:       int,
+        mac:         bytes,
+        original_id: int,
+        error_code:  RCode           = 0,
+        other_data:  Optional[bytes] = None,
+    ):
+        """
+        :param alg_name:    name of the algorithm in domain name syntax
+        :param time_signed: seconds since 1-Jan-70 UTC
+        :param fudge:       seconds of error permitted in time_signed
+        :param mac:         defined by algorithm name
+        :param orignal_id:  original message ID
+        :param error_code:  expanded RCODE covering TSIG processing
+        :param other_data:  empty unless Error == BADTIME
+        """
+        self.alg_name    = alg_name
+        self.time_signed = time_signed
+        self.fudge       = fudge
+        self.mac         = mac
+        self.original_id = original_id
+        self.error_code  = error_code
+        self.other_data  = other_data or b''
+
+    def to_bytes(self, ctx: SerialCtx) -> bytes:
+        """convert tsig-object into raw-bytes"""
+        validate_int('fudge', self.fudge, 16)
+        validate_int('mac_len', len(self.mac), 16)
+        validate_int('original_id', self.original_id, 16)
+        validate_int('error_code', self.error_code, 16)
+        validate_int('other_data_len', len(self.other_data), 16)
+        # shift index for any non ctx packed data after rendering domain
+        ts        = int(self.time_signed.timestamp())
+        domain    = ctx.domain_to_bytes(self.alg_name)
+        ctx._idx += len(self.mac) + len(self.other_data)
+        # generate bytes
+        return (
+            domain                               +
+            ctx.pack('>X', ts)                   +
+            ctx.pack('>H', self.fudge)           +
+            ctx.pack('>H', len(self.mac))        +
+            self.mac                             +
+            ctx.pack('>H', self.original_id)     +
+            ctx.pack('>H', self.error_code)      +
+            ctx.pack('>H', len(self.other_data)) +
+            self.other_data
+        )
+
+    @classmethod
+    def from_bytes(cls, raw: bytes, ctx: SerialCtx) -> 'TSIG':
+        """convert raw-bytes into tsig-objects"""
+        algname, idx = ctx.domain_from_bytes(raw)
+        raw          = raw[idx:]
+        time_signed  = ctx.unpack('>X', raw[:6])
+        fudge        = ctx.unpack('>H', raw[6:8])
+        mac_len      = ctx.unpack('>H', raw[8:10]) + 10
+        mac, raw     = (raw[10:mac_len], raw[mac_len:])
+        original_id  = ctx.unpack('>H', raw[:2])
+        error_code   = ctx.unpack('>H', raw[2:4])
+        other_len    = ctx.unpack('>H', raw[4:6])
+        other_data   = raw[:other_len]
+        return cls(
+            alg_name=algname,
+            time_signed=datetime.datetime.fromtimestamp(time_signed),
+            fudge=fudge,
+            mac=mac,
+            original_id=original_id,
+            error_code=error_code,
+            other_data=other_data,
+        )

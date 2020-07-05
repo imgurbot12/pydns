@@ -14,7 +14,8 @@ __all__ = [
     'TXT',
     'A',
     'AAAA',
-    'SRV'
+    'SRV',
+    'TSIG',
 ]
 
 from .records import *

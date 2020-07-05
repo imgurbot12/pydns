@@ -75,6 +75,6 @@ class ResourceRecord:
         content = _content_classes[rtype.name].from_bytes(data, ctx)
         # generate new object
         return (
-            cls(name=domain, rclass=rclass, ttl=ttl, content=content),
+            cls(name=domain, ttl=ttl, content=content, rclass=rclass),
             idx + 10 + dlen
         )
