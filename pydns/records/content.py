@@ -1,6 +1,6 @@
 import datetime
 import ipaddress
-from typing import Union
+from typing import Union, Optional
 
 from ..const import *
 
