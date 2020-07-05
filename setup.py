@@ -6,6 +6,7 @@ setup(
     packages=[
         'pydns',
         'pydns.edns',
+        'pydns.ddns',
         'pydns.records',
         'pydns.server'
     ],
