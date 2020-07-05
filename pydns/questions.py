@@ -25,7 +25,7 @@ class Question:
     +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
     """
 
-    def __init__(self, name: str, qtype: QType, qclass: QClass = QClass.IN):
+    def __init__(self, name: str, qtype: Type, qclass: Class = Class.IN):
         """
         :param name:   name of the domain being looked up
         :param qtype:  question-type used to recieve specific answer type
@@ -55,27 +55,6 @@ class Question:
         # generate class
         return cls(
             name=domain,
-            qtype=QType(ctx.unpack('>H', raw[:2])),
-            qclass=QClass(ctx.unpack('>H', raw[2:4]))
+            qtype=Type(ctx.unpack('>H', raw[:2])),
+            qclass=Class(ctx.unpack('>H', raw[2:4]))
         ), idx+4
-
-#TODO: remove these notes later
-#NOTE:
-#
-# 1. iterate url w/ fmt: [chunk-len-byte] [chunk...]
-# 2. for each [chunk-len-byte] check if byte startswith `11`
-#     - if it does, parse fmt: ([chunk-len-byte/int-byte] [int-byte]) = uint16
-#
-# ex: [3] [www] [6] google [3] com [0]
-# ex: [3] [www] [192] [4]              <- ([192, 4] is ptr to index 4 of bytes)
-# both examples eq: `www.google.com`
-
-#NOTE:
-#
-# 1. iterate url a single-byte
-# 2. check if byte startswith `11`
-#     - if it does, get next byte only and parse for domain from cache
-#    else
-#     - get n-bytes based on uint8 integer value as this chunk
-# 3. keep track of how many bytes were read to keep track of indexing
-#    for later ptr references

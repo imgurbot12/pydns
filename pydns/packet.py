@@ -2,10 +2,14 @@
 """
 from typing import List, Optional, Tuple
 
+# primary dns implementation
 from .const import *
 from .flags import Flags
 from .questions import Question
 from .records import ResourceRecord
+# ddns extensions
+from .ddns import Zone, PreRequisite, Update
+# edns extensions
 from .edns import EDNSResourceRecord
 
 
@@ -14,27 +18,54 @@ __all__ = ['TranactionID', 'DNSPacket']
 
 TranactionID = int
 
-#** Functions **#
-
-#TODO: dns library needs to support EDNS for things like dig
-
 #** Classes **#
+
 class DNSPacket:
+    """domain name server packet object for reading/writing data"""
 
     def __init__(self,
         id:         TranactionID,
         flags:      Flags,
-        questions:  List[Question],
+        questions:  Optional[List[Question]]       = None,
         answers:    Optional[List[ResourceRecord]] = None,
         authority:  Optional[List[ResourceRecord]] = None,
         additional: Optional[List[ResourceRecord]] = None,
+        zones:      Optional[List[Zone]]           = None,
+        requisites: Optional[List[PreRequisite]]   = None,
+        updates:    Optional[List[Update]]         = None,
     ):
+        """
+        :param id:         transaction id used to track the a req/resp pair
+        :param flags:      booleans related to requested/available dns behaviors
+        :param questions:  records the client wants to retrieve
+        :param answers:    responses to given questions if any
+        :param authority:  additional responses pretaining to authority
+        :param additonal:  additional miscellaneous responses
+        :param zones:      (DDNS) related zones for updates (replaces questions)
+        :param requisites: (DDNS) required RRs for updates (replaces answers)
+        :param updates:    (DDNS) new/modified RRs (replaces authority)
+        """
         self.id        = id
         self.flags     = flags
-        self.questions = questions
-        self.answers   = answers or []
-        self.authority = authority or []
+        self.questions = questions or zones
+        self.answers   = answers or requisites or []
+        self.authority = authority or updates or []
         self.additonal = additional or []
+
+    @property
+    def zones(self) -> List[Zone]:
+        """alias for questions used as part of DDNS"""
+        return self.questions
+
+    @property
+    def requisites(self) -> List[PreRequisite]:
+        """alias for answers used as part of DDNS"""
+        return self.answers
+
+    @property
+    def updates(self) -> List[Update]:
+        """alias for updates used as part of DDNS"""
+        return self.authority
 
     def to_bytes(self, ctx: SerialCtx) -> bytes:
         """convert dns-packet into raw-bytes"""
@@ -73,9 +104,14 @@ class DNSPacket:
         nau   = ctx.unpack('>H', raw[8:10])
         nad   = ctx.unpack('>H', raw[10:12])
         raw   = raw[12:]
-        question,  raw = cls._obj_from_bytes(Question, nq, raw, ctx)
-        answer,    raw = cls._obj_from_bytes(ResourceRecord, nan, raw, ctx)
-        authority, raw = cls._obj_from_bytes(ResourceRecord, nau, raw, ctx)
+        if flags.op == OpCode.Update:
+            question,  raw = cls._obj_from_bytes(Zone, nq, raw, ctx)
+            answer,    raw = cls._obj_from_bytes(PreRequisite, nan, raw, ctx)
+            authority, raw = cls._obj_from_bytes(Update, nau, raw, ctx)
+        else:
+            question,  raw = cls._obj_from_bytes(Question, nq, raw, ctx)
+            answer,    raw = cls._obj_from_bytes(ResourceRecord, nan, raw, ctx)
+            authority, raw = cls._obj_from_bytes(ResourceRecord, nau, raw, ctx)
         additonal, raw = cls._obj_from_bytes(EDNSResourceRecord, nad, raw, ctx)
         return cls(
             id=id,

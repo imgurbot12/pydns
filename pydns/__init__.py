@@ -3,23 +3,6 @@
 
 #** Variables **#
 __all__ = [
-    # edns
-    'EDNSResourceRecord',
-    'EDNSFlags',
-    'Cookie',
-    # records
-    'ResourceRecord',
-    'CNAME',
-    'MX',
-    'NS',
-    'PTR',
-    'SOA',
-    'TXT',
-    'A',
-    'AAAA',
-    # packet
-    'TranactionID',
-    'DNSPacket',
     # const
     'DNSError',
     'IntError',
@@ -30,15 +13,37 @@ __all__ = [
     'RCode',
     'Type',
     'Class',
-    'QType',
-    'QClass',
     'EDNSOption',
+    # packet
+    'TranactionID',
+    'DNSPacket',
+    # records
+    'ResourceRecord',
+    'CNAME',
+    'MX',
+    'NS',
+    'PTR',
+    'SOA',
+    'TXT',
+    'A',
+    'AAAA',
+    'SRV',
+    'TSIG',
     # flags
     'Flags',
     # question
     'Question',
+    # ddns
+    'Zone',
+    'PreRequisite',
+    'Update',
+    # edns
+    'EDNSResourceRecord',
+    'EDNSFlags',
+    'Cookie',
 ]
 
+from .ddns import *
 from .edns import *
 from .const import *
 from .flags import *

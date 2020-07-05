@@ -19,8 +19,6 @@ __all__ = [
     'RCode',
     'Type',
     'Class',
-    'QType',
-    'QClass',
     'EDNSOption',
 ]
 
@@ -29,6 +27,7 @@ _bitmax = {
     8:  2**8,
     16: 2**16,
     32: 2**32,
+    48: 2**48,
 }
 
 #** Errors **#
@@ -147,7 +146,11 @@ class SerialCtx:
         :param num: number being packed into bytes
         :return:    raw-bytes representing integer
         """
-        packed = struct.pack(fmt, num)
+        # 6byte integer not supported, so package like 8byte and trim bytes
+        if fmt == '>X':
+            packed = struct.pack('>Q', num)[2:]
+        else:
+            packed = struct.pack(fmt, num)
         self._idx += len(packed)
         return packed
 
@@ -159,6 +162,11 @@ class SerialCtx:
         :param raw: raw-bytes being converted to integer
         :return:    number parsed from raw-bytes
         """
+        # 6bytes integer not supported, so act like an 8byte one
+        if fmt == '>X':
+            fmt = '>Q'
+            raw = b'\x00\x00' + raw
+        # shift idx and unpack integer
         self._idx += len(raw)
         unpacked = struct.unpack(fmt, raw)[0]
         return unpacked
@@ -170,11 +178,11 @@ class QR(enum.IntEnum):
     Response = 1 << 7
 
 class OpCode(enum.IntEnum):
-    Query        = 0 << 4
-    InverseQuery = 1 << 4
-    Status       = 2 << 4
-    Notify       = 4 << 4
-    Update       = 5 << 4
+    Query        = 0 << 3
+    InverseQuery = 1 << 3
+    Status       = 2 << 3
+    Notify       = 4 << 3
+    Update       = 5 << 3
 
 class RCode(enum.IntEnum):
     NoError           = 0
@@ -218,44 +226,20 @@ class Type(enum.IntEnum):
     SRV   = 33
     OPT   = 41
 
-class Class(enum.Enum):
-    IN = 1
-    CS = 2
-    CH = 3
-    HS = 4
-
-class QType(enum.IntEnum):
-    A     = 1
-    NS    = 2
-    MD    = 3
-    MF    = 4
-    CNAME = 5
-    SOA   = 6
-    MB    = 7
-    MG    = 8
-    MR    = 9
-    NULL  = 10
-    WKS   = 11
-    PTR   = 12
-    HINFO = 13
-    MINFO = 14
-    MX    = 15
-    TXT   = 16
-    AAAA  = 28
-    SRV   = 33
-    OPT   = 41
+    TSIG  = 250
 
     AXFR  = 252
     MAILB = 253
     MAILA = 254
-    ALL   = 255
+    ANY   = 255
 
-class QClass(enum.IntEnum):
-    IN  = 1
-    CS  = 2
-    CH  = 3
-    HS  = 4
-    ALL = 255
+class Class(enum.Enum):
+    IN   = 1
+    CS   = 2
+    CH   = 3
+    HS   = 4
+    NONE = 254
+    ANY  = 255
 
 class EDNSOption(enum.IntEnum):
     Cookie = 10
