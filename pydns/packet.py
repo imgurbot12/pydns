@@ -40,7 +40,7 @@ class DNSPacket:
         :param questions:  records the client wants to retrieve
         :param answers:    responses to given questions if any
         :param authority:  additional responses pretaining to authority
-        :param additonal:  additional miscellaneous responses
+        :param additional:  additional miscellaneous responses
         :param zones:      (DDNS) related zones for updates (replaces questions)
         :param requisites: (DDNS) required RRs for updates (replaces answers)
         :param updates:    (DDNS) new/modified RRs (replaces authority)
@@ -50,7 +50,7 @@ class DNSPacket:
         self.questions = questions or zones
         self.answers   = answers or requisites or []
         self.authority = authority or updates or []
-        self.additonal = additional or []
+        self.additional = additional or []
 
     @property
     def zones(self) -> List[Zone]:
@@ -76,11 +76,11 @@ class DNSPacket:
             ctx.pack('>H', len(self.questions)) +
             ctx.pack('>H', len(self.answers))   +
             ctx.pack('>H', len(self.authority)) +
-            ctx.pack('>H', len(self.additonal)) +
+            ctx.pack('>H', len(self.additional)) +
             b''.join(q.to_bytes(ctx) for q in self.questions) +
             b''.join(a.to_bytes(ctx) for a in self.answers)   +
             b''.join(a.to_bytes(ctx) for a in self.authority) +
-            b''.join(a.to_bytes(ctx) for a in self.additonal)
+            b''.join(a.to_bytes(ctx) for a in self.additional)
         )
 
     @staticmethod
@@ -112,12 +112,12 @@ class DNSPacket:
             question,  raw = cls._obj_from_bytes(Question, nq, raw, ctx)
             answer,    raw = cls._obj_from_bytes(ResourceRecord, nan, raw, ctx)
             authority, raw = cls._obj_from_bytes(ResourceRecord, nau, raw, ctx)
-        additonal, raw = cls._obj_from_bytes(EDNSResourceRecord, nad, raw, ctx)
+        additional, raw = cls._obj_from_bytes(EDNSResourceRecord, nad, raw, ctx)
         return cls(
             id=id,
             flags=flags,
             questions=question,
             answers=answer,
             authority=authority,
-            additional=additonal,
+            additional=additional,
         )

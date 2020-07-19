@@ -81,7 +81,7 @@ class MX(RecordContent):
     @classmethod
     def from_bytes(cls, raw: bytes, ctx: SerialCtx) -> 'MX':
         """convert raw-bytes into mx-record"""
-        preference  = ctx.unpack('>H', raw[:2])[0]
+        preference  = ctx.unpack('>H', raw[:2])
         exchange, _ = ctx.domain_from_bytes(raw[2:])
         return cls(preference=preference, exchange=exchange)
 
@@ -251,18 +251,14 @@ class SRV(RecordContent):
         validate_int('weight', self.weight, 16)
         validate_int('port', self.port, 16)
         return (
-            ctx.pack('>H', self.priority) +
-            ctx.pack('>H', self.weight)   +
-            ctx.pack('>H', self.port)     +
+            ctx.pack('>HHH', self.priority, self.weight, self.port) +
             ctx.domain_to_bytes(self.target)
         )
 
     @classmethod
     def from_bytes(cls, raw: bytes, ctx: SerialCtx) -> 'SRV':
         """convert raw-bytes into srv-record"""
-        priority   = ctx.unpack('>H', raw[:2])
-        weight     = ctx.unpack('>H', raw[2:4])
-        port       = ctx.unpack('>H', raw[4:6])
+        priority, weight, port = ctx.unpack('>HHH', raw[:6])
         target, _  = ctx.domain_from_bytes(raw[6:])
         return cls(priority, weight, port, target)
 
@@ -308,30 +304,29 @@ class TSIG:
         ctx._idx += len(self.mac) + len(self.other_data)
         # generate bytes
         return (
-            domain                               +
-            ctx.pack('>X', ts)                   +
-            ctx.pack('>H', self.fudge)           +
-            ctx.pack('>H', len(self.mac))        +
-            self.mac                             +
-            ctx.pack('>H', self.original_id)     +
-            ctx.pack('>H', self.error_code)      +
-            ctx.pack('>H', len(self.other_data)) +
+            domain                                     +
+            ctx.pack('>X', ts)                         +
+            ctx.pack('>HH', self.fudge, len(self.mac)) +
+            self.mac                                   +
+            ctx.pack('>HHH',
+                self.original_id,
+                self.error_code,
+                len(self.other_data)
+            )                                          +
             self.other_data
         )
 
     @classmethod
     def from_bytes(cls, raw: bytes, ctx: SerialCtx) -> 'TSIG':
         """convert raw-bytes into tsig-objects"""
-        algname, idx = ctx.domain_from_bytes(raw)
-        raw          = raw[idx:]
-        time_signed  = ctx.unpack('>X', raw[:6])
-        fudge        = ctx.unpack('>H', raw[6:8])
-        mac_len      = ctx.unpack('>H', raw[8:10]) + 10
-        mac, raw     = (raw[10:mac_len], raw[mac_len:])
-        original_id  = ctx.unpack('>H', raw[:2])
-        error_code   = ctx.unpack('>H', raw[2:4])
-        other_len    = ctx.unpack('>H', raw[4:6])
-        other_data   = raw[:other_len]
+        algname, idx                  = ctx.domain_from_bytes(raw)
+        raw                           = raw[idx:]
+        time_signed                   = ctx.unpack('>X', raw[:6])
+        fudge, mlen                   = ctx.unpack('>HH', raw[6:10])
+        mlen                         += 10
+        mac, raw                      = (raw[10:mlen], raw[mlen:])
+        original_id, error_code, olen = ctx.unpack('>HHH', raw[:6])
+        other_data                    = raw[6:olen+6]
         return cls(
             alg_name=algname,
             time_signed=datetime.datetime.fromtimestamp(time_signed),

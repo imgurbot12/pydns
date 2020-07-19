@@ -45,8 +45,8 @@ class _Handler(udp.Handler):
         self.pkt.flags.qr = QR.Response
         self.pkt.recursion_available = True
         # handle EDNS response
-        if self.pkt.additonal:
-            self.pkt.additonal[0].content = None
+        if self.pkt.additional:
+            self.pkt.additional[0].content = None
         # run packet handler
         self.handler(self.pkt, addr)
         # attempt to send response

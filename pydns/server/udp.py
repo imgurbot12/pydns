@@ -91,16 +91,24 @@ class Server:
         if self._kw['broadcast']:
             self._s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         self._s.bind(self.addr)
+        #NOTE: using a blocking udp listener like this one
+        # had a tendancy to break other udp operations taking
+        # place so using a very short timeout on listening
+        # seems to have reduced this issue
+        self._s.settimeout(0.05)
         # listen for messages from sock
         recv = self._kw['recv']
         while self._running:
-            handler = self.factory(self._s)
-            data, addr = self._s.recvfrom(recv)
-            if not data:
-                continue
-            addr   = Addr(*addr)
-            future = self._pool.submit(handler.datagram_received, data, addr)
-            future.add_done_callback(lambda x: self._future_cb(x, handler))
+            try:
+                data, addr = self._s.recvfrom(recv)
+                if not data:
+                    continue
+                addr    = Addr(*addr)
+                handler = self.factory(self._s)
+                future  = self._pool.submit(handler.datagram_received,data,addr)
+                future.add_done_callback(lambda x: self._future_cb(x, handler))
+            except socket.timeout:
+                pass
         # shutdown set running to false
         self._s.close()
 

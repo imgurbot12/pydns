@@ -35,7 +35,7 @@ class Flags:
         aa:    bool  = False,
         tc:    bool  = False,
         rd:    bool  = False,
-        ra:    bool  = True,
+        ra:    bool  = False,
         ad:    bool  = False,
         cd:    bool  = False,
         rcode: RCode = RCode.NoError
