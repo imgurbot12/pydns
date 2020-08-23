@@ -41,12 +41,19 @@ __all__ = [
     'EDNSResourceRecord',
     'EDNSFlags',
     'Cookie',
+    # dnssec
+    'DNSKeyFlags',
+    'DS',
+    'NSEC',
+    'RRSIG',
+    'DNSKEY',
 ]
 
 from .ddns import *
 from .edns import *
 from .const import *
 from .flags import *
+from .dnssec import *
 from .packet import *
 from .records import *
 from .questions import *

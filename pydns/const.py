@@ -138,6 +138,27 @@ class SerialCtx:
         self._idx += idx
         return ('.'.join(ch for _, ch in chunks), idx)
 
+    def tohex(self, raw: bytes) -> str:
+        """
+        convert raw-bytes into hex
+
+        :param raw: raw-bytes
+        :return:    newly generated hex string
+        """
+        self._idx += len(raw)
+        return raw.hex()
+
+    def fromhex(self, hex: str) -> bytes:
+        """
+        convert hex-string into raw-bytes
+
+        :param hex: hex-string
+        :return:    raw-bytes
+        """
+        raw = bytes.fromhex(hex)
+        self._idx += len(raw)
+        return raw
+
     def pack(self, fmt: str, num: int) -> bytes:
         """
         convert given number in the relevant packed integer
@@ -226,6 +247,11 @@ class Type(enum.IntEnum):
     SRV   = 33
     OPT   = 41
 
+    DS     = 43
+    RRSIG  = 46
+    NSEC   = 47
+    DNSKEY = 48
+
     TSIG  = 250
 
     AXFR  = 252
@@ -243,3 +269,33 @@ class Class(enum.Enum):
 
 class EDNSOption(enum.IntEnum):
     Cookie = 10
+
+class DNSSecAlgorithm(enum.IntEnum):
+    RSA_MD5        = 1
+    DH             = 2
+    DIFFIE_HELMEN  = 2
+    DSA            = 3
+    DSA_SHA1       = 3
+    ECC            = 4
+    ELIPTIC_CURVE  = 4
+    RSA_SHA1       = 5
+
+    DSA_NSEC3_SHA1     = 6
+    RSASHA1_NSEC3_SHA1 = 7
+    RSA_SHA256         = 8
+    RSA_SHA512         = 10
+    ECC_GOST           = 12
+    ECDSA_P256_SHA256  = 13
+    ECDSA_P384_SHA384  = 14
+    ED25519            = 15
+    ED448              = 16
+
+    INDIRECT      = 252
+    PRIVATE_DNS   = 253
+    PRIVATE_OID   = 254
+
+class DNSSecDigestType(enum.IntEnum):
+    SHA1     = 1
+    SHA256   = 2
+    ECC_GOST = 3
+    SHA_384  = 4

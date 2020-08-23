@@ -38,7 +38,7 @@ class Question:
     def to_bytes(self, ctx: SerialCtx) -> bytes:
         """convert question object into raw-bytes"""
         return (
-            ctx.domain_to_bytes(self.name)  +
+            ctx.domain_to_bytes(self.name)   +
             ctx.pack('>H', self.qtype.value) +
             ctx.pack('>H', self.qclass.value)
         )
