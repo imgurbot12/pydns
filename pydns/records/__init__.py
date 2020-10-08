@@ -6,6 +6,7 @@ __all__ = [
     'ResourceRecord',
 
     'RecordContent',
+    'Empty',
     'CNAME',
     'MX',
     'NS',

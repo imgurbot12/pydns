@@ -23,7 +23,7 @@ class PreRequisite(ResourceRecord):
     def __init__(self,
         name:    str,
         content: Optional[RecordContent] = None,
-        rclass:  Class                   = Class.NONE,
+        rclass:  Class                   = Class.IN,
         ttl:     int                     = 0,
     ):
         """

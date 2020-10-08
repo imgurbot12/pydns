@@ -19,6 +19,7 @@ __all__ = [
     'DNSPacket',
     # records
     'ResourceRecord',
+    'Empty',
     'CNAME',
     'MX',
     'NS',
@@ -37,6 +38,8 @@ __all__ = [
     'Zone',
     'PreRequisite',
     'Update',
+    'ANY',
+    'NULL',
     # edns
     'EDNSResourceRecord',
     'EDNSFlags',

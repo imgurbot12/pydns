@@ -1,7 +1,7 @@
 """
 """
 import struct
-from typing import Tuple
+from typing import Union, Tuple
 
 from ..const import *
 from . import content
@@ -23,7 +23,7 @@ class ResourceRecord:
     def __init__(self,
         name:    str,
         ttl:     int,
-        content: content.RecordContent,
+        content: Union[content.RecordContent, Type],
         rclass:  Class = Class.IN,
     ):
         """
@@ -39,6 +39,7 @@ class ResourceRecord:
 
     @property
     def rtype(self):
+        """retrieve record-type of content"""
         return self.content.const
 
     def to_bytes(self, ctx: SerialCtx) -> bytes:
@@ -55,7 +56,10 @@ class ResourceRecord:
         return (base + struct.pack('>H', len(content)) + content)
 
     @classmethod
-    def from_bytes(cls, raw: bytes, ctx: SerialCtx) -> Tuple['ResourceRecord', int]:
+    def from_bytes(cls,
+        raw: bytes,
+        ctx: SerialCtx
+    ) -> Tuple['ResourceRecord', int]:
         """convert raw-bytes into resource-record object"""
         # parse domain and separate flags from rest of bytes
         domain, idx  = ctx.domain_from_bytes(raw)
@@ -72,9 +76,12 @@ class ResourceRecord:
         rclass  = Class(ctx.unpack('>H', flags[2:4]))
         ttl     = ctx.unpack('>I', flags[4:])
         # finally parse content using the right object based on RType
-        content = _content_classes[rtype.name].from_bytes(data, ctx)
+        if dlen == 0:
+            rcontent = content.Empty(rtype)
+        else:
+            rcontent = _content_classes[rtype.name].from_bytes(data, ctx)
         # generate new object
         return (
-            cls(name=domain, ttl=ttl, content=content, rclass=rclass),
+            cls(name=domain, ttl=ttl, content=rcontent, rclass=rclass),
             idx + 10 + dlen
         )

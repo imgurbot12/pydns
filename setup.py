@@ -1,14 +1,19 @@
 from setuptools import setup
 
+#TODO: unit-tests need to be a thing for all of the existing
+#TODO: after unit-tests join struct operations into groups when possible
+#TODO: investigate pypacker to learn how they parse domains fast
+
 setup(
     name='pydns',
     version='0.0.2',
     packages=[
         'pydns',
-        'pydns.edns',
         'pydns.ddns',
+        'pydns.edns',
         'pydns.records',
-        'pydns.server'
+        'pydns.client',
+        'pydns.server',
     ],
     author='imgurbot12',
     author_email='imgurbot12@gmail.com',

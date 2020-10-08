@@ -2,9 +2,23 @@ from ..const import SerialCtx, Type
 from ..records import RecordContent
 
 #** Variables **#
-__all__ = ['ANY']
+__all__ = ['ANY', 'NULL']
 
 #** Classes **#
+
+class NULL(RecordContent):
+    """content type used in pre-requisite to declare any RR is acceptable"""
+    const = Type.NULL
+
+    def __init__(self):
+        pass
+
+    def to_bytes(self, ctx: SerialCtx) -> bytes:
+        return b''
+
+    @classmethod
+    def from_bytes(cls, raw: bytes, ctx: SerialCtx) -> 'NONE':
+        return cls()
 
 class ANY(RecordContent):
     """content type used in pre-requisite to declare any RR is acceptable"""

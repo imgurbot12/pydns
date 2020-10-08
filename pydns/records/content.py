@@ -7,6 +7,7 @@ from ..const import *
 #** Variables **#
 __all__ = [
     'RecordContent',
+    'Empty',
 
     'CNAME',
     'MX',
@@ -32,6 +33,15 @@ class RecordContent:
     @classmethod
     def from_bytes(cls, raw: bytes, ctx: SerialCtx) -> 'RecordContent':
         raise NotImplementedError('must be overwritten!')
+
+class Empty(RecordContent):
+    """internal class used for when data-length is zero but type is specified"""
+
+    def __init__(self, const: Type):
+        self.const = const
+
+    def to_bytes(self, ctx: SerialCtx):
+        return b''
 
 class _DomainRecordContent(RecordContent):
     _key = ''
@@ -178,7 +188,7 @@ class TXT(RecordContent):
 
     def to_bytes(self, ctx: SerialCtx) -> bytes:
         """convert txt-record into raw-bytes"""
-        text = self.txt.encode('utf-8')
+        text = self.txt.encode()
         validate_int('len(text)', len(text), 8)
         ctx._idx += len(text)
         return ctx.pack('>B', len(text)) + text
@@ -188,7 +198,7 @@ class TXT(RecordContent):
         """convert raw-bytes into txt-record"""
         txtlen = raw[0] + 1
         ctx._idx += txtlen
-        return cls(raw[1:txtlen])
+        return cls(raw[1:txtlen].decode())
 
 class A(RecordContent):
     const = Type.A
