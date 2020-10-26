@@ -11,6 +11,7 @@ setup(
         'pydns',
         'pydns.ddns',
         'pydns.edns',
+        'pydns.dnssec',
         'pydns.records',
         'pydns.client',
         'pydns.server',
