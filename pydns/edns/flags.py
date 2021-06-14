@@ -1,13 +1,14 @@
 """
 """
 from ..const import *
+from ..flags import Flags
 
 #** Variables **#
 __all__ = ['EDNSFlags']
 
 #** Classes **#
 
-class EDNSFlags:
+class EDNSFlags(Flags):
     """"""
 
     def __init__(self, do: bool = False):

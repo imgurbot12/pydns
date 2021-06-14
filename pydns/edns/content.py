@@ -3,28 +3,14 @@
 from typing import Optional
 
 from ..const import *
+from ..records import RecordContent
 
 #** Variables **#
-__all__ = [
-    'EDNSRecordContent',
-
-    'Cookie'
-]
+__all__ = ['RecordContent', 'Cookie']
 
 #** Classes **#
 
-class EDNSRecordContent:
-    """baseclass for content included in EDNSResourceRecord"""
-    const = None
-
-    def to_bytes(self, ctx: SerialCtx) -> bytes:
-        raise NotImplementedError('must be overwritten!')
-
-    @classmethod
-    def from_bytes(cls, raw: bytes, ctx: SerialCtx) -> 'EDNSRecordContent':
-        raise NotImplementedError('must be overwritten!')
-
-class Cookie(EDNSRecordContent):
+class Cookie(RecordContent):
     const = EDNSOption.Cookie
 
     def __init__(self, client: bytes, server: Optional[bytes] = None):

@@ -67,6 +67,23 @@ class DNSPacket:
         """alias for updates used as part of DDNS"""
         return self.authority
 
+    def summary(self) -> str:
+        """generate summary for DNSPacket"""
+        flags = self.flags.summary()
+        questions = '\n'.join(q.summary() for q in self.questions)
+        # collect answers
+        answers = '\n'.join(a.summary() for a in self.answers)
+        authority = '\n'.join(a.summary() for a in self.authority)
+        additional = '\n'.join(a.summary() for a in self.additional)
+        # add newline prefix if any answers present
+        answers = ('\n' + answers) if answers else ''
+        authority = ('\n' + authority) if authority else ''
+        additional = ('\n' + additional) if additional else ''
+
+        return \
+            f"=== DNS PACKET ===\nFlags:\n{flags}\nQuestions:\n{questions}\n" \
+            f"Answers:{answers}\nAuthority:{authority}\nAdditional:{additional}"
+
     def to_bytes(self, ctx: SerialCtx) -> bytes:
         """convert dns-packet into raw-bytes"""
         validate_int('id', self.id, 16)

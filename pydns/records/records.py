@@ -42,6 +42,14 @@ class ResourceRecord:
         """retrieve record-type of content"""
         return self.content.const
 
+    def summary(self) -> str:
+        """generate summary for resource-record"""
+        type = self.content.const.name
+        cname = self.content.__class__.__name__
+        return \
+            f"  - type={type} name={self.name} class={self.rclass} ttl={self.ttl}\n" \
+            f"    content ({cname}):\n      {self.content.summary()}"
+
     def to_bytes(self, ctx: SerialCtx) -> bytes:
         """convert resource-record into raw-bytes"""
         validate_int('ttl', self.ttl, 32)
@@ -78,8 +86,10 @@ class ResourceRecord:
         # finally parse content using the right object based on RType
         if dlen == 0:
             rcontent = content.Empty(rtype)
-        else:
+        elif rtype.name in _content_classes:
             rcontent = _content_classes[rtype.name].from_bytes(data, ctx)
+        else:
+            rcontent = content.Unknown(rtype, data)
         # generate new object
         return (
             cls(name=domain, ttl=ttl, content=rcontent, rclass=rclass),

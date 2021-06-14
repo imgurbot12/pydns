@@ -1,5 +1,6 @@
 """
 """
+from ..flags import Flags
 from ..const import SerialCtx
 
 #** Variables **#
@@ -7,7 +8,7 @@ __all__ = ['DNSKeyFlags']
 
 #** Classes **#
 
-class DNSKeyFlags:
+class DNSKeyFlags(Flags):
 
     def __init__(self,
         zone_key:    bool = False,

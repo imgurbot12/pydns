@@ -41,7 +41,6 @@ __all__ = [
     'ANY',
     'NULL',
     # edns
-    'EDNSResourceRecord',
     'EDNSFlags',
     'Cookie',
     # dnssec

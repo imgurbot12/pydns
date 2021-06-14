@@ -61,6 +61,10 @@ class Flags:
         self.checking_disabled   = cd
         self.rcode               = rcode
 
+    def summary(self) -> str:
+        """generate summary of flags"""
+        return '\n'.join(f' - {k}: {v}' for k,v in vars(self).items())
+
     def to_bytes(self, ctx: SerialCtx) -> bytes:
         """convert header object into bytes"""
         validate_int('rcode', self.rcode.value, bits=4)

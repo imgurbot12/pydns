@@ -4,12 +4,7 @@
 #TODO: add better docs for EDNS docstrings
 
 #** Variables **#
-__all__ = [
-    'EDNSResourceRecord',
-    'EDNSFlags',
-
-    'Cookie'
-]
+__all__ = ['EDNSFlags', 'Cookie']
 
 from .edns import *
 from .flags import *

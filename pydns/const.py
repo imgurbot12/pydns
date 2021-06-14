@@ -189,7 +189,9 @@ class SerialCtx:
             raw = b'\x00\x00' + raw
         # shift idx and unpack integer
         self._idx += len(raw)
-        unpacked = struct.unpack(fmt, raw)[0]
+        unpacked = struct.unpack(fmt, raw)
+        if len(unpacked) == 1:
+            return unpacked[0]
         return unpacked
 
 #** Enums **#
@@ -245,6 +247,7 @@ class Type(enum.IntEnum):
     TXT   = 16
     AAAA  = 28
     SRV   = 33
+    NAPTR = 35
     OPT   = 41
 
     DS     = 43

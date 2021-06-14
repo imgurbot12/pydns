@@ -35,6 +35,10 @@ class Question:
         self.qtype  = qtype
         self.qclass = qclass
 
+    def summary(self) -> str:
+        """generate summary for question"""
+        return f" - class={self.qclass} type={self.qtype.name} name={self.name}"
+
     def to_bytes(self, ctx: SerialCtx) -> bytes:
         """convert question object into raw-bytes"""
         return (

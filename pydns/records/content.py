@@ -27,6 +27,10 @@ class RecordContent:
     """baseclass for content being applied to a ResourceRecord object"""
     const = None
 
+    def summary(self) -> str:
+        """generate summary for record-content"""
+        return ' '.join(f'{k}={v}' for k,v in vars(self).items())
+
     def to_bytes(self, ctx: SerialCtx) -> bytes:
         raise NotImplementedError('must be overwritten!')
 
@@ -42,6 +46,20 @@ class Empty(RecordContent):
 
     def to_bytes(self, ctx: SerialCtx):
         return b''
+
+class Unknown(RecordContent):
+    """internal class used for when the record-content is an unknown type"""
+
+    def __init__(self, const: Type, raw: bytes):
+        self.raw = raw
+        self.const = const
+
+    def summary(self) -> str:
+        """generate summary for unknown record-type"""
+        return f"hex={self.raw.hex()}"
+
+    def to_bytes(self, ctx: SerialCtx) -> bytes:
+        return self.raw
 
 class _DomainRecordContent(RecordContent):
     _key = ''

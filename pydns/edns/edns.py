@@ -6,6 +6,7 @@ from typing import Optional, Tuple
 from ..const import *
 from . import content
 from .flags import EDNSFlags
+from ..records import ResourceRecord
 
 #** Variables **#
 __all__ = ['EDNSResourceRecord']
@@ -24,7 +25,7 @@ _content_classes = {
 
 #** Classes **#
 
-class EDNSResourceRecord:
+class EDNSResourceRecord(ResourceRecord):
     """"""
 
     def __init__(self,
@@ -32,13 +33,24 @@ class EDNSResourceRecord:
         rcode:   int       = 0,
         version: int       = 0,
         flags:   EDNSFlags = _default_flags,
-        content: Optional[content.EDNSRecordContent] = None,
+        content: Optional[content.RecordContent] = None,
     ):
         self.udp_size = size
         self.rcode    = rcode
         self.version  = version
         self.flags    = flags
         self.content  = content
+
+    def summary(self) -> str:
+        """generate summary for edns-resource-record"""
+        (cname, content) = ('Empty', '')
+        if self.content is not None:
+            cname   = self.content.__class__.__name__
+            content = self.content.summary()
+        return \
+            f"  - type=OPT name=<root> size={self.udp_size} code={self.rcode} version={self.version}\n" \
+            f"    flags:\n      {self.flags.summary()}\n" \
+            f"    content ({cname}):\n      {content}"
 
     def to_bytes(self, ctx: SerialCtx) -> bytes:
         """convert EDNSResourceRecord to raw-bytes"""
