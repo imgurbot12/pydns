@@ -7,13 +7,14 @@ from queue import Queue
 from typing import Tuple, Optional
 
 from .. import *
+from . import BaseClient
 
 #** Variables **#
 __all__ = ['UDPClient']
 
 #** Classes **#
 
-class UDPClient:
+class UDPClient(BaseClient):
     """connection pooled dns client over udp"""
 
     def __init__(self, addr: Tuple[str, int], pool_size: int = -1):
@@ -31,9 +32,9 @@ class UDPClient:
         if self.max > 0:
             if len(self.cache) < self.max:
                 s   = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                s.settimeout(5)
+                s.settimeout(10)
                 ctx = SerialCtx()
-                self.cache.append(s)
+                self.cache.append((s, ctx))
                 return (s, ctx)
             return self.queue.get()
         else:
@@ -41,7 +42,7 @@ class UDPClient:
             ctx = SerialCtx()
             return (s, ctx)
 
-    def query(self, *q: Question) -> DNSPacket:
+    def query(self, *questions: Question) -> DNSPacket:
         """
         query the dns server over udp and return the response
 
@@ -52,7 +53,7 @@ class UDPClient:
         pkt = DNSPacket(
             id=random.randint(0, 65534),
             flags=Flags(qr=QR.Question, op=OpCode.Query, rd=True),
-            questions=q,
+            questions=questions,
         )
         s, ctx = self._get_socket()
         try:

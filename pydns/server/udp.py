@@ -1,161 +1,179 @@
 """
-baseclass udp implementation using threadpool connection handling
+generic UDP dns server implementation
 """
 import sys
-import time
 import socket
-import threading
+import asyncio
+import logging
 import traceback
-from collections import namedtuple
-from typing import Tuple, Callable, Optional
-from concurrent.futures import Future, ThreadPoolExecutor
+from typing import Optional, Tuple
 
-from . import Addr
+from . import Handler, Addr
+from .. import DNSPacket, SerialCtx, QR, RCode
+from .exceptions import DNSException, NotImplemented
 
 #** Variables **#
-__all__ = ['Handler', 'Server']
+__all__ = []
+
+#** Functions **#
+
+def _logger(name: str, loglevel: int) -> logging.Logger:
+    """
+    spawn logging instance w/ the given loglevel
+    :param name:     name of the logging instance
+    :param loglevel: level of verbosity on logging instance
+    """
+    log = logging.getLogger(name)
+    log.setLevel(loglevel)
+    # spawn handler
+    fmt     = logging.Formatter('[%(process)d] [%(levelname)s] %(message)s')
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(fmt)
+    handler.setLevel(loglevel)
+    log.handlers.append(handler)
+    return log
+
+def _new_handler(
+    num:       int,
+    log:       logging.Logger,
+    factory:   DNSPacket,
+    handler:   Handler,
+    interface: Optional[str] = None,
+) -> asyncio.DatagramProtocol:
+    """
+    spawn new subclass of handler to handle incoming DNS packets
+    :param num:       number assigned to handler when spawning multiple
+    :param log:       logging instance used for debugging
+    :param factory:   dns-class used to deserialize raw bytes
+    :param handler:   function used to handle packets formed with factory
+    :param interface: network interface to bind socket to
+    :return:          new handler to handle dns packets
+    """
+    class NewHandler(_Handler):
+        _num       = num
+        _log       = log
+        _factory   = factory
+        _interface = None if interface is None else interface.encode('utf-8')
+
+        def on_packet(self, pkt: DNSPacket, addr: Addr) -> Optional[DNSPacket]:
+            return handler(pkt, addr)
+    return NewHandler
 
 #** Classes **#
 
-class Handler:
-    """udp connection handler baseclass"""
+class _Handler(asyncio.DatagramProtocol):
+    """metaclass handler for incoming udp packets built for DNS"""
+    _num:       int
+    _log:       logging.Logger
+    _factory:   DNSPacket
+    _interface: Optional[bytes] = None
 
-    def __init__(self, sock: socket.socket):
-        self.connection_made(sock)
+    def _on_error(self, e: Exception, pkt: DNSPacket, addr: Addr):
+        """run on failure to handle packet/transport"""
+        pkt.flags.qr = QR.Response
+        pkt.flags.rcode = RCode.ServerFailure
+        # handle EDNS response
+        if pkt.additional:
+            pkt.additional[0].content = None
+        # edit pkt if error is DNS specific
+        if isinstance(e, DNSException):
+            pkt.flags.rcode = e.code
+        # send error over transport
+        self._ctx.reset()
+        self._transport.sendto(pkt.to_bytes(self._ctx), addr)
 
-    def connection_made(self, transport: socket.socket):
-        """pass socket object on start of handler"""
+    def connection_made(self, transport: asyncio.DatagramTransport):
+        self._ctx = SerialCtx()
+        self._transport = transport
+        # bind to given interface if given
+        if self._interface is not None:
+            sock = self._transport.get_extra_info('socket')
+            sock.setsockopt(socket.SOL_SOCKET,
+                socket.SO_BINDTODEVICE, self._interface)
 
-    def datagram_received(self, data: bytes, addr: Addr):
-        """handle incoming data from specified address"""
+    def on_packet(self, req: DNSPacket, addr: Addr) -> Optional[DNSPacket]:
+        raise NotImplementedError('on-packet handler not declared')
 
-    def error_received(self, err: Exception):
-        """handle error on packet handling"""
+    def datagram_received(self, data: bytes, addr: Tuple[str, int]):
+        """
+        handle incoming dns-packet and send appropriate response
 
-class Server:
-    """basic thread-pool udp server implementation"""
+        :param data: raw-bytes being collected from client
+        :parma addr: address request is coming from
+        """
+        # retrieve request object if possible
+        try:
+            self._ctx.reset()
+            req = self._factory.from_bytes(data, self._ctx)
+        except Exception as e:
+            self._log.debug('(%s) failed to parse DNS: %s' % (addr[0], e))
+            return
+        # attempt to retrieve response
+        try:
+            res = self.on_packet(req, Addr(addr[0], addr[1]))
+        except Exception as e:
+            self._log.error('(%s) failed to handle packet: %s' % (addr[0], e))
+            print('\n%s' % traceback.format_exc(), file=sys.stderr)
+            self._on_error(e, req, addr)
+            return
+        # attempt to send response
+        try:
+            if res is not None:
+                self._ctx.reset()
+                self._transport.sendto(res.to_bytes(self._ctx), addr)
+        except Exception as e:
+            # log error and print traceback
+            self._log.error('(%s) unable to send response: %s' % (addr[0], e))
+            print('\n%s' % traceback.format_exc(), file=sys.stderr)
+            self._on_error(e, req, addr)
+
+class UDPServer:
+    """complete DNS server used to handle and reply to packets"""
 
     def __init__(self,
-        addr:             Addr,
-        handler_factory:  Handler,
-        threads:          int = 5,
-        **kwargs
+        factory:   DNSPacket         = DNSPacket,
+        handler:   Optional[Handler] = None,
+        address:   Tuple[str, int]   = ('0.0.0.0', 53),
+        interface: Optional[str]     = None,
+        debug:     bool              = False,
     ):
         """
-        :param addr:            address for udp server
-        :param handler_factory: udp handler factory
-        :param threads:         number of threads to use in pool
-        :param kwargs:          additional server settings
+        :param factory:   dns packet factory
+        :param handler:   optional override on class packet handler
+        :param address:   address to bind server to
+        :param interface: network interface used to send replies
+        :param debug:     enable debugging if true
         """
-        if not issubclass(handler_factory, Handler):
-            raise TypeError('handler_factory must be subclass of Handler')
-        default = {
-            'recv':            2048,
-            'reuse_port':      False,
-            'broadcast':       False,
-            'print_traceback': False,
-        }
-        self.addr     = addr
-        self.factory  = handler_factory
-        self._pool    = ThreadPoolExecutor(max_workers=threads)
-        self._kw      = {**default, **kwargs}
-        self._s       = None
-        self._running = False
-        # ensure that all keys in kwargs are valid
-        for key in kwargs:
-            if key not in default:
-                raise ValueError('no such argument: %s' % key)
+        loglevel       = logging.DEBUG if debug else logging.INFO
+        self.log       = _logger('dns.udp', loglevel)
+        self.factory   = factory
+        self.address   = address
+        self.interface = interface
+        self.handler   = self.handler if handler is None else handler
 
-    def _future_cb(self, future: Future, handler: Handler):
-        """check if error in response and run error-handler"""
-        err = future.exception()
-        if err is not None:
-            # run exception handler
-            handler.error_received(err)
-            # print traceback for logs if enabled
-            if self._kw['print_traceback']:
-                tb  = ''.join(traceback.format_tb(err.__traceback__))
-                print('Traceback (most recent call last):\n%s%s: %s' % (
-                    ''.join(traceback.format_tb(err.__traceback__)),
-                    err.__class__.__name__,
-                    err.args[0],
-                ), file=sys.stderr)
+    def handler(self, pkt: DNSPacket, addr: Addr) -> Optional[DNSPacket]:
+        """default handler just returns back an empty response w/ no answers"""
+        raise NotImplemented('dns handler not implemented')
 
-    def _listen(self) -> socket.socket:
-        """generate new udp socket"""
-        # open socket to listen for requests
-        self._s = socket.socket(socket.AF_INET,
-            socket.SOCK_DGRAM, socket.IPPROTO_UDP)
-        if self._kw['reuse_port']:
-            self._s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
-        if self._kw['broadcast']:
-            self._s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        self._s.bind(self.addr)
-        #NOTE: using a blocking udp listener like this one
-        # had a tendancy to break other udp operations taking
-        # place so using a very short timeout on listening
-        # seems to have reduced this issue
-        self._s.settimeout(0.05)
-        # listen for messages from sock
-        recv = self._kw['recv']
-        while self._running:
-            try:
-                data, addr = self._s.recvfrom(recv)
-                if not data:
-                    continue
-                addr    = Addr(*addr)
-                handler = self.factory(self._s)
-                future  = self._pool.submit(handler.datagram_received,data,addr)
-                future.add_done_callback(lambda x: self._future_cb(x, handler))
-            except socket.timeout:
-                pass
-        # shutdown set running to false
-        self._s.close()
-
-    def _shutdown(self):
-        """set shutdown and force blocking socket to close by sending packet"""
-        self._running = False
-        # send socket request
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.sendto(b'', self.addr)
-        # shutdown thread pool
-        self._pool.shutdown(wait=False)
-
-    def on_start(self):
-        """run on server startup"""
-
-    def on_shutdown(self):
-        """run on server shutdown"""
-
-    def run_forever(self):
-        """run the server forever (a really long time)"""
-        if self._running:
-            raise RuntimeError('server already running!')
-        try:
-            self.on_start()
-            self._running = True
-            self._listen()
-        finally:
-            self._running = False
-            # ensure socket closes
-            if self._s is not None:
-                self._s.close()
-            # complete shutdown functions
-            self.on_shutdown()
-            self._pool.shutdown(wait=False)
-
-    def wait_shutdown(self):
-        """wait until shutdown"""
-        while self._running:
-            time.sleep(0.25)
-
-    def start(self):
-        """spawn server as a daemonized thread"""
-        self._t = threading.Thread(target=self.run_forever, name='dns.server')
-        self._t.daemon = True
-        self._t.start()
-
-    def stop(self):
-        """stop daemonized server"""
-        self._shutdown()
-        self.wait_shutdown()
+    def run_forever(self, threads: int = 5) -> asyncio.Future:
+        """
+        spawn dns server and start handling incoming packets
+        :param threads: number of handlers spawned in parralel
+        :return:        asyncio future object in charge of running server
+        """
+        loop      = asyncio.get_event_loop()
+        endpoints = []
+        for n in range(threads):
+            handle = _new_handler(
+                num=n,
+                log=self.log,
+                factory=self.factory,
+                handler=self.handler,
+                interface=self.interface
+            )
+            point = loop.create_datagram_endpoint(handle,
+                local_addr=self.address, reuse_port=True, allow_broadcast=False)
+            endpoints.append(point)
+        # return gathered endpoints
+        self.log.info('Serving DNS on %s port %d' % self.address)
+        return asyncio.gather(*endpoints)

@@ -13,4 +13,4 @@ Addr: Tuple[str, int] = namedtuple('Addr', ['host', 'port'])
 #: dns packet handler function type definition
 Handler = Callable[['DNSPacket', Addr], None]
 
-from .server import UDPServer
+from .udp import UDPServer

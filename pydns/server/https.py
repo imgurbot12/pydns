@@ -1,107 +1,53 @@
 """
 dns server implementation for dns-over-https
 """
-import socket
-import logging
-import asyncio
-from sanic import Sanic
-from sanic import request
-from sanic import response
-from concurrent.futures import ThreadPoolExecutor
+import base64
 
-from . import Addr, Handler
 from .. import DNSPacket, QR, RCode, SerialCtx
 
 #** Variables **#
 __all__ = []
 
-CONTENT_TYPE = 'application/dns-message'
+#: raw content-type for dns-over-https
+CONTENT_RAW = 'application/dns-message'
 
-#** Classes **#
+#: json content-type for dns-over-https
+CONTENT_JSON = 'application/dns-json'
 
-class Handler:
-    """https connection handler baseclass"""
+#** Functions **#
 
-    def __init__(self):
-        self.connection_made()
+def _get_request(method: str, params: dict, headers: dict, body: bytes):
+    """parse dns-packet request based on http data"""
+    # ensure output is in valid format
+    accept = headers.get('Accept')
+    if accept not in (CONTENT_RAW, CONTENT_JSON):
+        raise ContentTypeError('Accept: %s' % accept)
+    # parse packet based on method/query-params/content-type
+    ctx   = SerialCtx()
+    if method.upper() == 'GET':
+        # if question is b64-encoded in params
+        if 'dns' in params:
+            req = DNSPacket.from_bytes(base64.b64decode(params['dns']), ctx)
+        elif 'name' in params and 'type' in params:
+            #TODO: form question and full packet here
+        else:
+            raise NotSpecifiedError('no valid search params found')
+    elif method.upper() == 'POST':
+        ctype = headers.get('Content-Type')
+        if ctype != CONTENT_RAW:
+            raise ContentTypeError('Content-Type: %s' % ctype)
+        req = DNSPacket.from_bytes(body, ctx)
 
-    def connection_made(self):
-        """run function on connection made"""
+def global_web_handler(method: str, params: dict, headers: dict, body: bytes):
+    """basic web-handler designed to be pluggable into any web-framework"""
+    req = _get_request(method, params, headers, body)
+    #TODO: pass to handler and handle response generation (especially JSON)
+    raise NotImplementedError('function not yet fully implemented. (im lazy)')
 
-    def request_received(self, req: Request):
-        """handle incoming data from connection"""
+#** Exceptions **#
 
-    def error_received(self, err: Exception):
-        """handle error on request"""
+class NotSpecifiedError(Exception):
+    """error raised when question is not specified properly"""
 
-class Server:
-
-    def __init__(self,
-        addr:            Addr,
-        handle:          Handler,
-        threads:         int  = 5,
-        reuse_port:      bool = False,
-        print_traceback: bool = False,
-    ):
-        """
-        :param addr:            address web-server is assigned to
-        :param handle:          dns-packet handler function
-        :param threads:         number of threads in worker-pool
-        :param reuse_port:      reuse port on socket in enabled
-        :param print_traceback: print handler exceptions if enabled
-        """
-        self._pool = ThreadPoolExecutor(max_workers=threads)
-        self._app  = Sanic('dns.https')
-        self._kw   = {
-            'reuse_port':      reuse_port,
-            'print_traceback': print_traceback
-        }
-
-    async def _handler(self, req: request.Request) -> response.HTTPResponse:
-        """handle inbound web-requests for dns-packets"""
-        # check content-type
-        if req.headers['Content-Type'] != CONTENT_TYPE:
-            return response.empty(status=400)
-        # run handler using thread-pool executor
-        handler = Handler()
-        loop    = asyncio.get_event_loop()
-        future  = loop.run_in_executor(self._pool,
-                    handler.request_received, req)
-        print(future)
-
-    def _future_cb(self, future: Future, handler: Handler):
-        """check if error in response and run error-handler"""
-        err = future.exception()
-        if err is not None:
-            # print traceback for logs if enabled
-            if self._kw['print_traceback']:
-                tb  = ''.join(traceback.format_tb(err.__traceback__))
-                print('Traceback (most recent call last):\n%s%s: %s' % (
-                    ''.join(traceback.format_tb(err.__traceback__)),
-                    err.__class__.__name__,
-                    err.args[0],
-                ), file=sys.stderr)
-            # run exception handler
-            handler.error_received(err)
-
-    def _listen(self):
-        """spawn application listener w/ customised socket"""
-        # open socket to listen for requests
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        if self._kw['reuse_port']:
-            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
-        s.bind(self.addr)
-        # attach web-handler to sanic
-        @self._app.get('/dns-query')
-        def handle(req):
-            return self._handler(req)
-        # start listener for web-service
-        app.run(s=s)
-
-#** Init **#
-
-# override sanic logging formats
-
-fmt = logging.Formatter('%(name)s - %(levelname)s - %(message)s')
-for handler in logging.getLogger('sanic.access').handlers:
-    handler.setFormatter(fmt)
+class ContentTypeError(Exception):
+    """error raised when content-type is not accepted"""
