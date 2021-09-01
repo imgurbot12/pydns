@@ -10,7 +10,7 @@ from typing import Optional, Tuple
 
 from . import Handler, Addr
 from .. import DNSPacket, SerialCtx, QR, RCode
-from .exceptions import DNSException, NotImplemented
+from ..exceptions import DNSException, NotImplemented
 
 #** Variables **#
 __all__ = []

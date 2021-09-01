@@ -48,7 +48,8 @@ class UDPClient(BaseClient):
         """retrieve socket from pool and SerialCtx or spawn a new ones"""
         # retrieve a new connector every time if pool is unlimited size
         if self.queue is None:
-            return self._new_connector()
+            sock, ctx, _ = self._new_connector()
+            return sock, ctx
         # otherwise wait for an item from the queue
         sock, ctx, ts = self.queue.get()
         # close socket if created longer than timeout
