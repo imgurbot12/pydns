@@ -26,7 +26,7 @@ def _logger(name: str, loglevel: int) -> logging.Logger:
     log = logging.getLogger(name)
     log.setLevel(loglevel)
     # spawn handler
-    fmt     = logging.Formatter('[%(process)d] [%(levelname)s] %(message)s')
+    fmt     = logging.Formatter('[%(process)d] [%(name)s] [%(levelname)s] %(message)s')
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(fmt)
     handler.setLevel(loglevel)
