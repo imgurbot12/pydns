@@ -159,19 +159,19 @@ class SerialCtx:
         self._idx += len(raw)
         return raw
 
-    def pack(self, fmt: str, num: int) -> bytes:
+    def pack(self, fmt: str, *nums: int) -> bytes:
         """
         convert given number in the relevant packed integer
 
-        :param fmt: struct pack format (ex: >H == 16bit-int)
-        :param num: number being packed into bytes
-        :return:    raw-bytes representing integer
+        :param fmt:  struct  pack format (ex: >H == 16bit-int)
+        :param nums: numbers being packed into bytes
+        :return:     raw-bytes representing integer
         """
         # 6byte integer not supported, so package like 8byte and trim bytes
         if fmt == '>X':
-            packed = struct.pack('>Q', num)[2:]
+            packed = struct.pack('>Q', *nums)[2:]
         else:
-            packed = struct.pack(fmt, num)
+            packed = struct.pack(fmt, *nums)
         self._idx += len(packed)
         return packed
 
