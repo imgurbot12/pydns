@@ -36,7 +36,7 @@ def get_exception_by_code(code: RCode) -> Optional['DNSException']:
         NotInZone,
     ):
         if ex.code == code:
-            return ex
+            return ex()
     return DNSException('server error occured', code)
 
 #** Classes **#
