@@ -45,7 +45,7 @@ class DNSException(Exception):
     """baseclass DNS exception object used for unexpected server errors"""
     code: RCode = None
 
-    def __init__(self, message: str, code: RCode = RCode.ServerFailure):
+    def __init__(self, message: str = '', code: RCode = RCode.ServerFailure):
         """specify code if not already declared for subclass & build message"""
         if self.code is None:
             self.code = code
