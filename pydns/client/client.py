@@ -56,7 +56,7 @@ class UDPClient(BaseClient):
             sock.close()
             return self._new_connector()
         # otherwise return recently used socket
-        return sock, ctx
+        return sock, ctx, ts
 
     def query(self, *questions: Question) -> DNSPacket:
         """
