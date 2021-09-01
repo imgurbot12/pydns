@@ -1,12 +1,15 @@
 """
 contains custom exceptions raised during various DNS errors
 """
-from ..const import RCode
+from typing import Optional
+
+from .const import RCode
 
 #** Variables **#
 __all__ = [
     'DNSException',
 
+    'ServerFailure',
     'FormatError',
     'NoSuchDomain',
     'Refused',
@@ -17,10 +20,39 @@ __all__ = [
     'NotInZone',
 ]
 
+#** Functions **#
+
+def get_exception_by_code(code: RCode) -> Optional['DNSException']:
+    """iterate exception types and try to match given code"""
+    for ex in (
+        ServerFailure,
+        FormatError,
+        NoSuchDomain,
+        Refused,
+        DomainExists,
+        RequisiteExists,
+        NoSuchRequisite,
+        NotAuthorized,
+        NotInZone,
+    ):
+        if ex.code == code:
+            return ex
+    return DNSException('server error occured', code)
+
 #** Classes **#
 
 class DNSException(Exception):
-    """baseclass DNS exception object used for basic server-failure"""
+    """baseclass DNS exception object used for unexpected server errors"""
+    code: RCode = None
+
+    def __init__(self, message: str, code: RCode = RCode.ServerFailure):
+        """specify code if not already declared for subclass & build message"""
+        if self.code is None:
+            self.code = code
+        super().__init__('(code=%s) %s' % (self.code.name, message))
+
+class ServerFailure(DNSException):
+    """custom error used for basic server-failure"""
     code = RCode.ServerFailure
 
 class FormatError(DNSException):

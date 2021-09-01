@@ -7,8 +7,9 @@ import requests
 from queue import Queue
 from typing import List, Tuple, Optional
 
-from .. import *
 from . import BaseClient
+from .. import *
+from ..exceptions import DNSException
 
 #** Variables **#
 __all__ = ['UDPClient']
@@ -70,7 +71,9 @@ class UDPClient(BaseClient):
             flags=Flags(qr=QR.Question, op=OpCode.Query, rd=True),
             questions=questions,
         )
-        for addr in self.addrs:
+        addrs = self.addrs[:]
+        while addrs:
+            addr = addrs.pop()
             # retrieve socket and SerialCtx
             sock, ctx = self._get_connector()
             try:
@@ -79,9 +82,13 @@ class UDPClient(BaseClient):
                 raw, addr = sock.recvfrom(8192)
                 # parse packet using ctx and return
                 ctx.reset()
-                return DNSPacket.from_bytes(raw, ctx)
-            except socket.timeout:
-                pass
+                # parse response and check for
+                res = DNSPacket.from_bytes(raw, ctx)
+                res.raise_on_error()
+                return res
+            except (socket.timeout, DNSException) as e:
+                if not addrs:
+                    raise e
             finally:
                 if self.queue is not None:
                     self.queue.put_nowait((sock, ctx))

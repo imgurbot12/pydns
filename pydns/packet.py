@@ -7,6 +7,7 @@ from .const import *
 from .flags import Flags
 from .questions import Question
 from .records import ResourceRecord
+from .exceptions import get_exception_by_code
 # ddns extensions
 from .ddns import Zone, PreRequisite, Update
 # edns extensions
@@ -51,6 +52,11 @@ class DNSPacket:
         self.answers   = answers or requisites or []
         self.authority = authority or updates or []
         self.additional = additional or []
+
+    def raise_on_error(self):
+        """raise exception if opcode is a server-failure"""
+        if self.flags.rcode != RCode.NoError:
+            raise get_exception_by_code(self.flags.rcode)
 
     @property
     def zones(self) -> List[Zone]:
