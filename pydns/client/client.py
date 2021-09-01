@@ -44,18 +44,17 @@ class UDPClient(BaseClient):
         sock.settimeout(self.timeout)
         return sock, SerialCtx(), time.time()
 
-    def _get_connector(self) -> Tuple[socket.socket, SerialCtx]:
+    def _get_connector(self) -> Tuple[socket.socket, SerialCtx, float]:
         """retrieve socket from pool and SerialCtx or spawn a new ones"""
         # retrieve a new connector every time if pool is unlimited size
         if self.queue is None:
-            sock, ctx, _ = self._new_connector()
-            return sock, ctx
+            return self._new_connector()
         # otherwise wait for an item from the queue
         sock, ctx, ts = self.queue.get()
         # close socket if created longer than timeout
         if (time.time() - ts) > self.timeout:
             sock.close()
-            sock, ctx, _ = self._new_connector()
+            return self._new_connector()
         # otherwise return recently used socket
         return sock, ctx
 
@@ -76,7 +75,7 @@ class UDPClient(BaseClient):
         while addrs:
             addr = addrs.pop()
             # retrieve socket and SerialCtx
-            sock, ctx = self._get_connector()
+            sock, ctx, ts = self._get_connector()
             try:
                 # send and recieve packet
                 sock.sendto(pkt.to_bytes(ctx), addr)
@@ -92,7 +91,7 @@ class UDPClient(BaseClient):
                     raise e
             finally:
                 if self.queue is not None:
-                    self.queue.put_nowait((sock, ctx))
+                    self.queue.put_nowait((sock, ctx, ts))
                 else:
                     sock.close()
 
