@@ -1,10 +1,11 @@
 """
 """
+import time
 import random
 import socket
 import requests
 from queue import Queue
-from typing import Tuple, Optional
+from typing import List, Tuple, Optional
 
 from .. import *
 from . import BaseClient
@@ -17,30 +18,44 @@ __all__ = ['UDPClient']
 class UDPClient(BaseClient):
     """connection pooled dns client over udp"""
 
-    def __init__(self, addr: Tuple[str, int], pool_size: int = -1):
+    def __init__(self,
+        addrs:     List[Tuple[str, int]],
+        timeout:   int = 15,
+        pool_size: int = -1
+    ):
         """
-        :param addr:      address to connect for dns queries
+        :param addrs:     addresses to connect for dns queries
+        :param timeout:   timeout for an individual dns request
         :param pool_size: size of sock pool, client spawns conn everytime if -1
         """
-        self.addr     = addr
-        self.max      = pool_size
-        self.queue    = Queue(maxsize=pool_size) if pool_size else None
-        self.cache    = [] if pool_size else None
+        self.addrs   = addrs
+        self.max     = pool_size
+        self.timeout = timeout
+        self.queue   = Queue(maxsize=pool_size) if pool_size > 0 else None
+        # spawn all connectors for queue if a given pool-size is set
+        if self.queue is not None:
+            for _ in range(pool_size):
+                self.queue.put_nowait(self._new_connector())
 
-    def _get_socket(self) -> Tuple[socket.socket, SerialCtx]:
+    def _new_connector(self) -> Tuple[socket.socket, SerialCtx, float]:
+        """spawn new socket and serial-ctx"""
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.settimeout(self.timeout)
+        return sock, SerialCtx(), time.time()
+
+    def _get_connector(self) -> Tuple[socket.socket, SerialCtx]:
         """retrieve socket from pool and SerialCtx or spawn a new ones"""
-        if self.max > 0:
-            if len(self.cache) < self.max:
-                s   = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                s.settimeout(10)
-                ctx = SerialCtx()
-                self.cache.append((s, ctx))
-                return (s, ctx)
-            return self.queue.get()
-        else:
-            s   = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            ctx = SerialCtx()
-            return (s, ctx)
+        # retrieve a new connector every time if pool is unlimited size
+        if self.queue is None:
+            return self._new_connector()
+        # otherwise wait for an item from the queue
+        sock, ctx, ts = self.queue.get()
+        # close socket if created longer than timeout
+        if (time.time() - ts) > self.timeout:
+            sock.close()
+            sock, ctx, _ = self._new_connector()
+        # otherwise return recently used socket
+        return sock, ctx
 
     def query(self, *questions: Question) -> DNSPacket:
         """
@@ -55,25 +70,30 @@ class UDPClient(BaseClient):
             flags=Flags(qr=QR.Question, op=OpCode.Query, rd=True),
             questions=questions,
         )
-        s, ctx = self._get_socket()
-        try:
-            # send and recieve packet
-            s.sendto(pkt.to_bytes(ctx), self.addr)
-            raw, addr = s.recvfrom(8192)
-            # parse packet using ctx and return
-            ctx.reset()
-            return DNSPacket.from_bytes(raw, ctx)
-        finally:
-            if self.max > 0:
-                self.queue.put_nowait((s, ctx))
-            else:
-                s.close()
+        for addr in self.addrs:
+            # retrieve socket and SerialCtx
+            sock, ctx = self._get_connector()
+            try:
+                # send and recieve packet
+                sock.sendto(pkt.to_bytes(ctx), addr)
+                raw, addr = sock.recvfrom(8192)
+                # parse packet using ctx and return
+                ctx.reset()
+                return DNSPacket.from_bytes(raw, ctx)
+            except socket.timeout:
+                pass
+            finally:
+                if self.queue is not None:
+                    self.queue.put_nowait((sock, ctx))
+                else:
+                    sock.close()
 
     def close(self):
         """close and socket connections in the active pool"""
-        if self.cache:
-            for s in self.cache:
-                s.close()
+        if self.queue is not None:
+            while not self.queue.empty():
+                sock, _ = self.queue.get()
+                sock.close()
 
 class HTTPClient:
 
