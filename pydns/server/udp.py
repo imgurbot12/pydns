@@ -113,7 +113,8 @@ class _Handler(asyncio.DatagramProtocol):
             res = self.on_packet(req, Addr(addr[0], addr[1]))
         except Exception as e:
             self._log.error('(%s) failed to handle packet: %s' % (addr[0], e))
-            print('\n%s' % traceback.format_exc(), file=sys.stderr)
+            if self._log.level <= logging.DEBUG:
+                print('\n%s' % traceback.format_exc(), file=sys.stderr)
             self._on_error(e, req, addr)
             return
         # attempt to send response
@@ -122,9 +123,9 @@ class _Handler(asyncio.DatagramProtocol):
                 self._ctx.reset()
                 self._transport.sendto(res.to_bytes(self._ctx), addr)
         except Exception as e:
-            # log error and print traceback
             self._log.error('(%s) unable to send response: %s' % (addr[0], e))
-            print('\n%s' % traceback.format_exc(), file=sys.stderr)
+            if self._log.level <= logging.DEBUG:
+                print('\n%s' % traceback.format_exc(), file=sys.stderr)
             self._on_error(e, req, addr)
 
 class UDPServer:

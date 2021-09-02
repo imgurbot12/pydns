@@ -91,6 +91,7 @@ class UDPClient(BaseClient):
                     raise e
             finally:
                 if self.queue is not None:
+                    ctx.reset()
                     self.queue.put_nowait((sock, ctx, ts))
                 else:
                     sock.close()
@@ -99,7 +100,7 @@ class UDPClient(BaseClient):
         """close and socket connections in the active pool"""
         if self.queue is not None:
             while not self.queue.empty():
-                sock, _ = self.queue.get()
+                sock, _, __ = self.queue.get()
                 sock.close()
 
 class HTTPClient:

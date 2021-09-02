@@ -22,7 +22,7 @@ __all__ = [
 
 #** Functions **#
 
-def get_exception_by_code(code: RCode) -> Optional['DNSException']:
+def get_exception_by_code(code: RCode, message: str = '') -> Optional['DNSException']:
     """iterate exception types and try to match given code"""
     for ex in (
         ServerFailure,
@@ -36,7 +36,7 @@ def get_exception_by_code(code: RCode) -> Optional['DNSException']:
         NotInZone,
     ):
         if ex.code == code:
-            return ex()
+            return ex(message)
     return DNSException('server error occured', code)
 
 #** Classes **#
@@ -49,7 +49,7 @@ class DNSException(Exception):
         """specify code if not already declared for subclass & build message"""
         if self.code is None:
             self.code = code
-        super().__init__('(code=%s) %s' % (self.code.name, message))
+        super().__init__(f'{self.__class__.__name__} | {message}')
 
 class ServerFailure(DNSException):
     """custom error used for basic server-failure"""

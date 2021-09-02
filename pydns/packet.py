@@ -56,7 +56,8 @@ class DNSPacket:
     def raise_on_error(self):
         """raise exception if opcode is a server-failure"""
         if self.flags.rcode != RCode.NoError:
-            raise get_exception_by_code(self.flags.rcode)
+            m = ', '.join(f'{q.name} ({q.qtype.name})' for q in self.questions)
+            raise get_exception_by_code(self.flags.rcode, m)
 
     @property
     def zones(self) -> List[Zone]:
