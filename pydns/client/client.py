@@ -12,7 +12,7 @@ from .. import *
 from ..exceptions import DNSException
 
 #** Variables **#
-__all__ = ['UDPClient']
+__all__ = ['UDPClient', 'HTTPSClient']
 
 #** Classes **#
 
@@ -83,9 +83,7 @@ class UDPClient(BaseClient):
                 # parse packet using ctx and return
                 ctx.reset()
                 # parse response and check for
-                res = DNSPacket.from_bytes(raw, ctx)
-                res.raise_on_error()
-                return res
+                return DNSPacket.from_bytes(raw, ctx)
             except (socket.timeout, DNSException) as e:
                 if not addrs:
                     raise e
@@ -103,7 +101,8 @@ class UDPClient(BaseClient):
                 sock, _, __ = self.queue.get()
                 sock.close()
 
-class HTTPClient:
+class HTTPSClient:
+    """basic DNS over HTTPS client"""
 
     def __init__(self, url: str = 'https://cloudflare-dns.com/dns-query'):
         self.url     = url
@@ -122,10 +121,15 @@ class HTTPClient:
         :return:   response from dns server
         """
         ctx = SerialCtx()
-        pkt = DNSPacket(
+        req = DNSPacket(
             id=random.randint(0, 65534),
             flags=Flags(qr=QR.Question, op=OpCode.Query, rd=True),
             questions=q,
         )
-        r = self.session.post(self.url, data=pkt.to_bytes(ctx))
-        print(r.status_code, r.content)
+        # complete http request to retrieve response
+        r = self.session.post(self.url, data=req.to_bytes(ctx))
+        if r.status_code != 200:
+            raise RuntimeError(f'failed DNS request ({r.status_code}) {r.text}')
+        # parse response for dns data
+        ctx.reset()
+        return DNSPacket.from_bytes(r.content, ctx)

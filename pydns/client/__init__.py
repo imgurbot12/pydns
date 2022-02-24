@@ -5,7 +5,7 @@ various DNS client implementations for easy lookups
 from pydns import Question, DNSPacket
 
 #** Variables **#
-__all__ = ['UDPClient']
+__all__ = ['UDPClient', 'HTTPSClient']
 
 #** Classes **#
 
