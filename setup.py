@@ -1,24 +1,29 @@
-from setuptools import setup
+from setuptools import setup, find_packages
 
-#TODO: unit-tests need to be a thing for all of the existing
-#TODO: after unit-tests join struct operations into groups when possible
-#TODO: investigate pypacker to learn how they parse domains fast
+with open('README.md', 'r') as f:
+    readme = f.read()
 
 setup(
-    name='pydns',
-    version='0.0.3',
-    packages=[
-        'pydns',
-        'pydns.ddns',
-        'pydns.edns',
-        'pydns.dnssec',
-        'pydns.records',
-        'pydns.client',
-        'pydns.server',
-    ],
-    author='imgurbot12',
-    author_email='imgurbot12@gmail.com',
-    url='https://github.com/imgurbot12/pydns',
+    name='pydns3',
+    version='0.0.1',
     license='MIT',
-    description="a small dns packet library designed for both parsing/creation"
+    packages=find_packages(),
+    url='https://github.com/imgurbot12/pydns',
+    author='Andrew Scott',
+    author_email='imgurbot12@gmail.com',
+    description='Simple Python DNS Library. DNS Packet-Parsing/Client/Server',
+    python_requires='>=3.7',
+    long_description=readme,
+    long_description_content_type="text/markdown",
+    install_requires=[
+        'pypool',
+        'pyserve',
+        'dataclasses',
+        'typing_extensions',
+    ],
+    classifiers=[
+        "Programming Language :: Python :: 3",
+        "License :: OSI Approved :: MIT License",
+        "Operating System :: OS Independent",
+    ]
 )

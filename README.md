@@ -1,4 +1,13 @@
 pydns
----
+------
+Simple Python DNS Library. DNS Packet-Parsing/Client/Server
 
-A basic DNS packet library designed for parsing/creation
+### Installation
+
+```
+pip install pydns3
+```
+
+### Examples
+
+Examples can be found in the [examples](https://github.com/imgurbot12/pydns/tree/master/examples) directory.

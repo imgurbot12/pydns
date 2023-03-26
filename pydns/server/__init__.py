@@ -1,16 +1,10 @@
 """
-dns server library for handling incoming packets over udp
+DNS Extensible Server Implementation
 """
-from collections import namedtuple
-from typing import Tuple, Callable
 
 #** Variables **#
-__all__ = ['Addr', 'Handler', 'UDPServer']
+__all__ = ['Session']
 
-#: udp address schema
-Addr: Tuple[str, int] = namedtuple('Addr', ['host', 'port'])
+#** Imports **#
+from .server import Session
 
-#: dns packet handler function type definition
-Handler = Callable[['DNSPacket', Addr], None]
-
-from .udp import UDPServer

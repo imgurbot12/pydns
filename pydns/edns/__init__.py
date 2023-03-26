@@ -1,11 +1,10 @@
 """
+Extension Mechanisms for DNS (EDNS0)
+(rfc: https://www.rfc-editor.org/rfc/rfc2671)
 """
 
-#TODO: add better docs for EDNS docstrings
-
 #** Variables **#
-__all__ = ['EDNSFlags', 'Cookie']
+__all__ = ['ROOT', 'EdnsAnswer']
 
-from .edns import *
-from .flags import *
-from .content import *
+#** Imports **#
+from .record import ROOT, EdnsAnswer

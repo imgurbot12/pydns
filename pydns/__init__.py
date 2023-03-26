@@ -1,61 +1,39 @@
 """
+Python Simple DNS Library
 """
 
 #** Variables **#
 __all__ = [
-    # const
-    'DNSError',
-    'IntError',
-    'PacketTruncated',
-    'SerialCtx',
     'QR',
-    'OpCode',
-    'RCode',
-    'Type',
-    'Class',
-    'EDNSOption',
-    # packet
-    'TranactionID',
-    'DNSPacket',
-    # records
-    'ResourceRecord',
-    'Empty',
+    'RType',
+    'RClass',
+
+    'Flags',
+    'Answer',
+    'PreRequisite',
+    'Update',
+    'Message', 
+    'Question',
+    'Zone',
+
+    'EdnsAnswer',
+
     'CNAME',
     'MX',
     'NS',
     'PTR',
     'SOA',
-    'TXT',
     'A',
     'AAAA',
-    'SRV',
-    'TSIG',
-    # flags
-    'Flags',
-    # question
-    'Question',
-    # ddns
-    'Zone',
-    'PreRequisite',
-    'Update',
-    'ANY',
-    'NULL',
-    # edns
-    'EDNSFlags',
-    'Cookie',
-    # dnssec
-    'DNSKeyFlags',
-    'DS',
-    'NSEC',
-    'RRSIG',
-    'DNSKEY',
+    'SRV'
 ]
 
-from .ddns import *
-from .edns import *
-from .const import *
-from .flags import *
-from .dnssec import *
-from .packet import *
-from .records import *
-from .questions import *
+#** Imports **#
+
+from .flags import Flags
+from .enum import QR, RType, RClass
+from .answer import Answer, PreRequisite, Update
+from .message import Message
+from .question import Question, Zone
+from .edns import EdnsAnswer
+from .content import *
