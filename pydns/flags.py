@@ -1,103 +1,70 @@
 """
+DNS Flags Implementation
 """
-from .const import *
+from enum import IntFlag
+from dataclasses import dataclass
+from typing_extensions import Self
+
+from .enum import QR, OpCode, RCode
 
 #** Variables **#
 __all__ = ['Flags']
 
+#** Functions **#
+
+def unmask(flags: int, start: int, end: int) -> int:
+    """
+    unmask a range of bits from the given integer
+    """
+    m1   = (1 << end) - 1
+    m2   = (1 << start) - 1
+    mask = m1 ^ m2
+    return flags & mask
+
 #** Classes **#
 
+class Flag(IntFlag):
+    Authorative      = 1 << 10
+    Truncated        = 1 << 9
+    RDesired         = 1 << 8
+    RAvailable       = 1 << 7
+    Authenticated    = 1 << 5
+    CheckingDisabled = 1 << 4
+
+@dataclass
 class Flags:
-    """
-    dns-flags object for serialization/deserilization
+    qr:                   QR
+    op:                   OpCode
+    authorative:          bool  = False
+    truncated:            bool  = False
+    recursion_desired:    bool  = True
+    recursion_available:  bool  = False
+    answer_authenticated: bool  = False
+    checking_disabled:    bool  = False
+    rcode:                RCode = RCode.NoError
 
-     0  1  2  3  4  5  6  7  8  9  0  1  2  3  4  5
-    +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-    |QR|   Opcode  |AA|TC|RD|RA| Z|AD|CD|   RCODE   |
-    +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-
-    QR    => specifies if message is a query (0), or a response (1)
-    OP    => A four bit field to desginate desired operation
-    AA    => declares whether packet is authorative answer
-    TC    => declared whether packet if truncated
-    RD    => declares whether recursion is desired
-    RA    => declares whether recursion is available
-    AD    => indicates the resolver believes the responses to be authentic,
-             validated by DNSSEC
-    CD    => indicates a security-aware resolver should disable signature
-             validation, (not check DNSSEC records)
-    RCODE => response/error codes
-    """
-
-    def __init__(self,
-        qr:    QR,
-        op:    OpCode,
-        aa:    bool  = False,
-        tc:    bool  = False,
-        rd:    bool  = False,
-        ra:    bool  = False,
-        ad:    bool  = False,
-        cd:    bool  = False,
-        rcode: RCode = RCode.NoError
-    ):
-        """
-        :param qr:    question/response flag (1 bit)
-        :param op:    operation-code flag (4 bits)
-        :param aa:    authorative-answer (1 bit)
-        :param tc:    truncated (1 bit)
-        :param rd:    recursion-desired (1 bit)
-        :param ra:    recursion-available (1 bit)
-        :param ad:    authentic-data (1 bit) (DNSSEC)
-        :param cd:    checking-disabled (1 bit) (DNSEC)
-        :param rcode: response-code error (4 bits)
-        """
-        self.qr                  = qr
-        self.op                  = op
-        self.authorative         = aa
-        self.truncated           = tc
-        self.recursion_desired   = rd
-        self.recursion_available = ra
-        self.authentic           = ad
-        self.checking_disabled   = cd
-        self.rcode               = rcode
-
-    def summary(self) -> str:
-        """generate summary of flags"""
-        return '\n'.join(f' - {k}: {v}' for k,v in vars(self).items())
-
-    def to_bytes(self, ctx: SerialCtx) -> bytes:
-        """convert header object into bytes"""
-        validate_int('rcode', self.rcode.value, bits=4)
-        ctx._idx += 2 # inrement index for two bytes encoded
-        return bytes([
-        (
-            self.qr.value                |
-            self.op.value                |
-            (int(self.authorative) << 2) |
-            (int(self.truncated)   << 1) |
-            int(self.recursion_desired)
-        ),
-        (
-            (int(self.recursion_available) << 7) |
-            (int(self.authentic)           << 5) |
-            (int(self.checking_disabled)   << 4) |
-            self.rcode.value
-        )
-        ])
+    def __int__(self) -> int:
+        flags  = self.qr << 15
+        flags |= self.op << 11
+        flags |= Flag.Authorative if self.authorative else 0
+        flags |= Flag.Truncated if self.truncated else 0
+        flags |= Flag.RDesired if self.recursion_desired else 0
+        flags |= Flag.RAvailable if self.recursion_available else 0
+        flags |= Flag.Authenticated if self.answer_authenticated else 0
+        flags |= Flag.CheckingDisabled if self.checking_disabled else 0
+        flags |= self.rcode
+        return flags
 
     @classmethod
-    def from_bytes(cls, raw: bytes, ctx: SerialCtx) -> 'Flags':
-        """convert raw-bytes into new class instance"""
-        ctx._idx += 2 # increment index for two bytes decoded
-        (byte1, byte2) = (raw[0], raw[1])
+    def fromint(cls, i: int) -> Self:
         return cls(
-            qr=QR(byte1 & 0b10000000),
-            op=OpCode(byte1 & 0b01111000),
-            aa=(byte1 & 0b00000100) > 0,
-            tc=(byte1 & 0b00000010) > 0,
-            rd=(byte1 & 0b00000001) > 0,
-            ra=(byte2 & 0b10000000) > 0,
-            ad=(byte2 & 0b00100000) > 0,
-            cd=(byte2 & 0b00010000) > 0,
-            rcode=RCode(byte2 & 0b00001111)
+            qr=QR(i >> 15),
+            op=OpCode(unmask(i, 11, 15)),
+            authorative=bool(i & Flag.Authorative),
+            truncated=bool(i & Flag.Truncated),
+            recursion_desired=bool(i & Flag.RDesired),
+            recursion_available=bool(i & Flag.RAvailable),
+            answer_authenticated=bool(i & Flag.Authenticated),
+            checking_disabled=bool(i & Flag.CheckingDisabled),
+            rcode=RCode(unmask(i, 0, 4)),
         )

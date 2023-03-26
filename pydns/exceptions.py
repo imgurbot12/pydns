@@ -1,92 +1,57 @@
 """
-contains custom exceptions raised during various DNS errors
+DNS RCode Exceptions
 """
-from typing import Optional
+from typing import Dict, Type, Optional, Any
 
-from .const import RCode
+from .enum import RCode
 
 #** Variables **#
 __all__ = [
-    'DNSException',
+    'make_error',
 
+    'DnsError',
     'ServerFailure',
-    'FormatError',
-    'NoSuchDomain',
-    'Refused',
-    'DomainExists',
-    'RequisiteExists',
-    'NoSuchRequisite',
-    'NotAuthorized',
-    'NotInZone',
+    'NonExistantDomain',
+    'NotImplemented',
 ]
+
+_EXCEPTIONS: Dict[RCode, Type[Exception]] = {}
 
 #** Functions **#
 
-def get_exception_by_code(code: RCode, message: str = '') -> Optional['DNSException']:
-    """iterate exception types and try to match given code"""
-    for ex in (
-        ServerFailure,
-        FormatError,
-        NoSuchDomain,
-        Refused,
-        DomainExists,
-        RequisiteExists,
-        NoSuchRequisite,
-        NotAuthorized,
-        NotInZone,
-    ):
-        if ex.code == code:
-            return ex(message)
-    return DNSException('server error occured', code)
+def make_error(rcode: RCode, message: Any = None):
+    """
+    retrieve best exception object to match the given rcode
+    """
+    # cache map of exceptions in module
+    global _EXCEPTIONS
+    if not _EXCEPTIONS:
+        for value in globals().values():
+            if isinstance(value, type) and issubclass(value, DnsError):
+                _EXCEPTIONS[value.rcode] = value
+    # retrieve best-matching exception class based on rcode
+    eclass = _EXCEPTIONS.get(rcode, DnsError)
+    raise eclass(message, rcode)
 
 #** Classes **#
 
-class DNSException(Exception):
-    """baseclass DNS exception object used for unexpected server errors"""
-    code: RCode = None
+class DnsError(Exception):
+    rcode: RCode = RCode.NoError
 
-    def __init__(self, message: str = '', code: RCode = RCode.ServerFailure):
-        """specify code if not already declared for subclass & build message"""
-        if self.code is None:
-            self.code = code
-        super().__init__(f'{self.__class__.__name__} | {message}')
+    def __init__(self, msg: Any = None, rcode: Optional[RCode] = None):
+        self.message = msg
+        self.rcode   = rcode or self.rcode
 
-class ServerFailure(DNSException):
-    """custom error used for basic server-failure"""
-    code = RCode.ServerFailure
+    def __str__(self) -> str:
+        if self.message and self.__class__.rcode == self.rcode:
+            return str(self.message)
+        return super().__str__()
 
-class FormatError(DNSException):
-    """custom error when request specification is incorrect"""
-    code = RCode.FormatError
+class ServerFailure(DnsError):
+    rcode = RCode.ServerFailure
 
-class NoSuchDomain(DNSException):
-    """custom error when requested domain does not exist"""
-    code = RCode.NonExistantDomain
+class NonExistantDomain(DnsError):
+    rcode = RCode.NonExistantDomain
 
-class NotImplemented(DNSException):
-    """custom error when type of request is not implemented"""
-    code = RCode.NotImplemented
-
-class Refused(DNSException):
-    """raise error when requested action is not allowed"""
-    code = RCode.Refused
-
-class DomainExists(DNSException):
-    """raise error when domain exists when its not supposed to"""
-    code = RCode.YXDomain
-
-class RequisiteExists(DNSException):
-    """raise error when requisite exists but its not supposed to"""
-    code = RCode.YXRRSet
-
-class NoSuchRequisite(DNSException):
-    """raise error when requisite settings havent been met"""
-    code = RCode.NXRRSet
-
-class NotAuthorized(DNSException):
-    """raise error when dns-server is not authorized to complete request"""
-    code = RCode.NotAuthorized
-
-class NotInZone(DNSException):
-    """custom error raised when update does not match designated zone"""
-    code = RCode.NotInZone
+class NotImplemented(DnsError):
+    rcode = RCode.NotImplemented
