@@ -12,7 +12,7 @@ from ...content import PTR
 __all__ = ['MemoryBackend']
 
 #: type definiton for in-memory record database
-RecordDB = Dict[bytes, Dict[str, List[Answer]]]
+RecordDB = Dict[bytes, Dict[RType, List[Answer]]]
 
 #: raw record entry configuration
 RecordEntries = Dict[str, List[Dict[str, Any]]]
@@ -35,13 +35,14 @@ class MemoryBackend(Backend):
         """
         rtype = answer.rtype
         self.records.setdefault(domain, {})
-        self.records[domain].setdefault(rtype.name, [])
-        self.records[domain][rtype.name].append(answer)
+        self.records[domain].setdefault(rtype, [])
+        self.records[domain][rtype].append(answer)
  
     def save_domain(self, domain: bytes, entries: RecordEntries):
         """
         save additional records into in-memory db
         """
+        assert isinstance(domain, bytes), 'domain must be bytes'
         # convert dictionary records into valid dns answer objects
         self.authorities.add(domain)
         for rname, records in entries.items():
@@ -74,5 +75,5 @@ class MemoryBackend(Backend):
         answers = []
         if domain in self.records:
             records = self.records[domain]
-            answers = records.get(rtype.name, [])
+            answers = records.get(rtype, [])
         return Answers(answers, self.source)

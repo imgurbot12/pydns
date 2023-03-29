@@ -25,7 +25,7 @@ class Client(BaseClient):
     block_size: int           = 8192
     pool_size:  Optional[int] = None
     expiration: Optional[int] = None
-    timeout:    int           = 30
+    timeout:    int           = 10
 
     def __post_init__(self):
         self.pool = SocketPool(

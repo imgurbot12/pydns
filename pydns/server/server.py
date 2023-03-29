@@ -1,5 +1,6 @@
 from enum import IntEnum
 from logging import Logger, getLogger
+from dataclasses import dataclass, field
 from typing import Optional
 
 from pyserve import Address, Writer
@@ -34,12 +35,11 @@ class Mode(IntEnum):
     THREADED       = 3
     THREADED_ASYNC = 4
 
+@dataclass
 class Session(BaseSession):
     """Extendable Implementation of DNS Server Session Manager"""
-    
-    def __init__(self, backend: Backend, logger: Optional[Logger] = None):
-        self.logger  = logger or getLogger('pydns')
-        self.backend = backend
+    backend: Backend
+    logger:  Logger  = field(default_factory=lambda: getLogger('pydns'))
     
     ### DNS Handlers
 
