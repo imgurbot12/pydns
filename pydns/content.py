@@ -1,7 +1,8 @@
 """
 DNS Standard Content Sequences
 """
-from typing import Optional
+from typing import Optional, Type, Tuple
+from typing_extensions import Self
 
 from .codec import *
 from .enum import RType
@@ -88,3 +89,29 @@ class SRV(Content):
     weight:   Int16
     port:     Int16
     target:   Domain
+
+class Literal(Content):
+    """handler for unsupported record types"""
+    size: int
+    
+    def __class_getitem__(cls, settings: Tuple[RType, int]) -> Type[Self]:
+        rtype, size = settings
+        return type(f'Unknown[{rtype.name}]', (cls, ), {
+            'rtype': rtype, 
+            'size': size
+        })
+
+    def __init__(self, data: bytes):
+        self.data = data
+
+    def __repr__(self) -> str:
+        return f'{self.__class__.__name__}({self.data.hex()})'
+
+    def encode(self, ctx: Context) -> bytes:
+        ctx.index += self.size
+        return self.data
+
+    @classmethod
+    def decode(cls, ctx: Context, raw: bytes) -> Self:
+        data = ctx.slice(raw, cls.size)
+        return cls(data)

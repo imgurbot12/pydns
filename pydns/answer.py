@@ -8,7 +8,7 @@ from typing import Protocol
 from typing_extensions import Self
 
 from .codec import *
-from .content import Content
+from .content import Content, Literal
 from .enum import RType, RClass
 from . import content
 
@@ -23,9 +23,13 @@ CONTENT_MAP = {r.rtype:r for r in CONTENT_ALL if issubclass(r, Content)}
 
 #** Functions **#
 
-def get_rclass(rtype: RType) -> Type[Content]:
+def get_rclass(rtype: RType, size: int) -> Type[Content]:
     """retrieve record content class based on record-type"""
-    return CONTENT_MAP[rtype]
+    # get working content class if rtype is supported
+    if rtype in CONTENT_MAP:
+        return CONTENT_MAP[rtype]
+    # else just encapsulate in sized-bytes object
+    return Literal[rtype, size]
 
 #** Classes **#
 
@@ -77,9 +81,9 @@ class Answer(BaseAnswer):
     def decode(cls, ctx: Context, raw: bytes) -> Self:
         # parse header and size of body
         header = Header.decode(ctx, raw)
-        Int16.decode(ctx, raw)
+        size   = Int16.decode(ctx, raw)
         # determine content-type based on rtype in header
-        rclass  = get_rclass(header.rtype)
+        rclass  = get_rclass(header.rtype, size)
         content = rclass.decode(ctx, raw)
         return cls(header.name, header.ttl, content, header.rclass)
 

@@ -33,7 +33,10 @@ class Client(BaseClient):
             max_size=self.pool_size, 
             expiration=self.expiration)
     
-    def newsock(self):
+    def newsock(self) -> socket.socket:
+        raise NotImplementedError
+
+    def cleanup(self, sock: socket.socket):
         raise NotImplementedError
 
     def pickaddr(self) -> RawAddr:
@@ -52,6 +55,10 @@ class UdpClient(Client):
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.settimeout(self.timeout)
         return sock
+
+    def cleanup(self, sock: socket.socket):
+        """cleanup socket object before expiration or deletion"""
+        sock.close()
     
 #TODO: include some sort of UDP retry if response doesnt come back after timeout
 
@@ -77,6 +84,11 @@ class TcpClient(Client):
         sock.settimeout(self.timeout)
         sock.connect(addr)
         return sock
+
+    def cleanup(self, sock: socket.socket):
+        """shutdown and cleanup tcp socket after expiration or deletion"""
+        sock.shutdown(socket.SHUT_RDWR)
+        sock.close()
 
     def request(self, msg: Message) -> Message:
         """
