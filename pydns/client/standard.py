@@ -29,7 +29,8 @@ class Client(BaseClient):
 
     def __post_init__(self):
         self.pool = SocketPool(
-            factory=self.newsock, 
+            factory=self.newsock,
+            cleanup=self.cleanup,
             max_size=self.pool_size, 
             expiration=self.expiration)
     

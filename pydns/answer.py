@@ -1,7 +1,7 @@
 """
 DNS Answer Record Instance/Format
 """
-from typing import Type
+from typing import Optional, Type
 from abc import abstractmethod
 from dataclasses import dataclass
 from typing import Protocol
@@ -23,13 +23,15 @@ CONTENT_MAP = {r.rtype:r for r in CONTENT_ALL if issubclass(r, Content)}
 
 #** Functions **#
 
-def get_rclass(rtype: RType, size: int) -> Type[Content]:
+def get_rclass(rtype: RType, size: Optional[int] = None) -> Type[Content]:
     """retrieve record content class based on record-type"""
     # get working content class if rtype is supported
     if rtype in CONTENT_MAP:
         return CONTENT_MAP[rtype]
     # else just encapsulate in sized-bytes object
-    return Literal[rtype, size]
+    if size is not None:
+        return Literal[rtype, size]
+    raise ValueError(f'unsupported rtype: {rtype.name!r}')
 
 #** Classes **#
 
