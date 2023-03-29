@@ -5,7 +5,7 @@ with open('README.md', 'r') as f:
 
 setup(
     name='pydns3',
-    version='0.0.3',
+    version='0.0.4',
     license='MIT',
     packages=find_packages(),
     url='https://github.com/imgurbot12/pydns',
@@ -16,8 +16,8 @@ setup(
     long_description=readme,
     long_description_content_type="text/markdown",
     install_requires=[
-        'pypool',
-        'pyserve',
+        'pypool3',
+        'pyserve3',
         'dataclasses',
         'typing_extensions',
     ],
