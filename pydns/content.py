@@ -15,9 +15,10 @@ __all__ = [
     'NS',
     'PTR',
     'SOA',
+    'TXT',
     'A',
     'AAAA',
-    'SRV'
+    'SRV',
 ]
 
 #** Functions **#
