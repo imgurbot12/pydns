@@ -92,7 +92,8 @@ class SRV(Content):
 
 class Literal(Content):
     """handler for unsupported record types"""
-    size: int
+    rtype: RType
+    size:  int
     
     def __class_getitem__(cls, settings: Tuple[RType, int]) -> Type[Self]:
         rtype, size = settings
