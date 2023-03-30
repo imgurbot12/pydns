@@ -84,6 +84,8 @@ class DbmBlockDB(BlockDB):
 
     def __init__(self, path: str, flag: str = 'cf'):
         self.dbm = dbm.open(path, flag=flag) #type: ignore
+        if dbm.whichdb(path) == 'dbm.dumb':
+            raise RuntimeError('Python has no valid DBM library installed!')
 
     def sources(self) -> Set[bytes]:
         """retrieve list of ingested sources"""
@@ -105,7 +107,8 @@ class DbmBlockDB(BlockDB):
         # sync and reorganize data
         if hasattr(self.dbm, 'sync'):
             self.dbm.sync()       #type: ignore
-            self.dbm.reorganize() #type: ignore
+            if hasattr(self.dbm, 'reorganize'):
+                self.dbm.reorganize() #type: ignore
         # add source to sources
         sources = self.sources()
         sources.add(name)

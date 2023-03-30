@@ -2,7 +2,7 @@
 In-Memory Backend Implementation
 """
 import ipaddress
-from typing import Dict, List, Set, Any
+from typing import Dict, List, Set, Any, ClassVar
 
 from . import Backend, Answers, Answer, RType
 from ...answer import get_rclass
@@ -21,14 +21,13 @@ RecordEntries = Dict[str, List[Dict[str, Any]]]
 
 class MemoryBackend(Backend):
     """Simple In-Memory Backend for DNS Records"""
-    source: str = 'MemDB'
+    source: ClassVar[str] = 'MemDB'
     
     __slots__ = ('records', 'authorities', 'recursion_available')
 
     def __init__(self):
         self.records:     RecordDB   = {}
         self.authorities: Set[bytes] = set()
-        self.source:      str        = self.__class__.__name__
 
     def add_answer(self, domain: bytes, answer: Answer):
         """
