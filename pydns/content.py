@@ -1,10 +1,11 @@
 """
 DNS Standard Content Sequences
 """
-from typing import Optional, Type, Tuple
+from typing import Optional, Type, Tuple, ClassVar, Any
 from typing_extensions import Self
 
-from .codec import *
+from pystructs import *
+
 from .enum import RType
 
 #** Variables **#
@@ -24,17 +25,25 @@ __all__ = [
 
 #** Functions **#
 
-def content(cls: Optional[type] = None, rtype: Optional[RType] = None):
+def content(cls: Optional[type] = None, rtype: Optional[RType] = None) -> 'Content':
     """generate content class w/ given rtype"""
     def wrapper(cls):
         cls.rtype = rtype or RType[cls.__name__] 
-        return make_sequence(cls)
-    return wrapper if cls is None else wrapper(cls)
+        return make_struct(cls)
+    return wrapper if cls is None else wrapper(cls) #type: ignore
 
 #** Classes **#
 
-class Content(Sequence):
+class Content:
     rtype: ClassVar[RType]
+
+    @classmethod
+    def encode(cls, ctx: Context) -> bytes:
+        raise NotImplementedError
+
+    @classmethod
+    def decode(cls, ctx: Context, raw: bytes) -> Any:
+        raise NotImplementedError
 
 @content
 class NULL(Content):

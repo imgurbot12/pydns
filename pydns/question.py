@@ -1,7 +1,8 @@
 """
 DNS Question Implementation
 """
-from .codec import *
+from pystructs import Domain, Int, struct
+
 from .enum import RType, RClass
 
 #** Variables **#
@@ -9,7 +10,7 @@ __all__ = ['Question', 'Zone']
 
 #** Classes **#
 
-@make_sequence
+@struct
 class Question:
     name:   Domain
     qtype:  Int[16, RType, 'QType']

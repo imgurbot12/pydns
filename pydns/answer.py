@@ -3,11 +3,12 @@ DNS Answer Record Instance/Format
 """
 from typing import Optional, Type
 from abc import abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Protocol
 from typing_extensions import Self
 
-from .codec import *
+from pystructs import Context, Domain, Int, Int16, Int32, struct
+
 from .content import Content, Literal
 from .enum import RType, RClass
 from . import content
@@ -35,7 +36,7 @@ def get_rclass(rtype: RType, size: Optional[int] = None) -> Type[Content]:
 
 #** Classes **#
 
-@make_sequence
+@struct
 class Header:
     name:   Domain
     rtype:  Int[16, RType, 'RType']
@@ -93,7 +94,7 @@ class Answer(BaseAnswer):
 class PreRequisite(Answer):
     """Alias for Answer in UPDATE action DNS Requests with Sensible Defaults"""
     ttl:     int = 0
-    content: Content = field(default_factory=content.ANY)
+    content: Content = field(default=content.ANY)
 
 class Update(Answer):
     """Alias of Answer in UPDATE action DNS Requests"""

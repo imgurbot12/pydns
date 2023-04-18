@@ -6,7 +6,8 @@ from dataclasses import dataclass, field
 from typing import Type
 from typing_extensions import Self
 
-from .codec import *
+from pystructs import Context, Domain, Int, Int16, struct
+
 from .enum import OpCode, RType, RCode
 from .flags import Flags
 from .answer import BaseAnswer, Answer, PreRequisite, Update
@@ -47,12 +48,12 @@ def decode_answers(cls: Type[Answer], num: int, ctx: Context, raw: bytes):
 
 #** Classes **#
 
-@make_sequence
+@struct
 class PeekHeader:
     name:  Domain
     rtype: Int[16, RType, 'RType']
 
-@make_sequence
+@struct
 class Header:
     id:             Int16
     flags:          Int16 

@@ -4,7 +4,8 @@ EDNS OPT Answer Varient Implementation
 from dataclasses import dataclass
 from typing_extensions import Self
 
-from ..codec import *
+from pystructs import Context, Domain, Int, Int8, Int16, struct
+
 from ..enum import RType
 from ..answer import BaseAnswer
 
@@ -16,7 +17,7 @@ ROOT = b''
 
 #** Classes **#
 
-@make_sequence
+@struct
 class Header:
     name:           Domain
     rtype:          Int[16, RType, 'RType']
