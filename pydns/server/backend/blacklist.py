@@ -5,8 +5,9 @@ import os
 import re
 import dbm
 from abc import abstractmethod
-from dataclasses import dataclass
 from typing import Protocol, Generator, TextIO, ClassVar, Set, Optional
+
+from pyderive import dataclass
 
 from . import Answers, Backend, RType
 
@@ -134,12 +135,11 @@ class DbmBlockDB(BlockDB):
         """check if domain is contained within the dbm key/value store"""
         return domain in self.dbm
 
-@dataclass(repr=False)
+@dataclass(slots=True, repr=False)
 class Blacklist(Backend):
     """
     Blacklist Backend Extension. Block all Records for Associated Domains
     """
-    __slots__ = ('backend', 'blacklist', 'empty')
     source: ClassVar[str] = 'Blacklist'
 
     backend:   Backend
@@ -163,3 +163,5 @@ class Blacklist(Backend):
             return self.empty
         # otherwise do standard backend lookup
         return self.backend.get_answers(domain, rtype)
+
+print(Blacklist.source)

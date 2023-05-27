@@ -3,11 +3,11 @@ Standard UDP/TCP Client Implementations
 """
 import random
 import socket
-from dataclasses import dataclass
 from typing import List, Optional
 
 from pypool import Pool
 from pyserve import RawAddr
+from pyderive import dataclass
 
 from . import BaseClient, Message
 
@@ -19,7 +19,7 @@ __all__ = ['UdpClient', 'TcpClient']
 class SocketPool(Pool[socket.socket]):
     pass
 
-@dataclass
+@dataclass(slots=True)
 class Client(BaseClient):
     addresses:  List[RawAddr]
     block_size: int           = 8192

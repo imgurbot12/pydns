@@ -2,11 +2,11 @@
 DNS Message Object
 """
 from typing import List
-from dataclasses import dataclass, field
 from typing import Type
 from typing_extensions import Self
 
-from pystructs import Context, Domain, Int, Int16, struct
+from pystructs import *
+from pyderive import dataclass, field
 
 from .enum import OpCode, RType, RCode
 from .flags import Flags
@@ -48,21 +48,21 @@ def decode_answers(cls: Type[Answer], num: int, ctx: Context, raw: bytes):
 
 #** Classes **#
 
-@struct
-class PeekHeader:
+@compile(slots=True)
+class PeekHeader(Struct):
     name:  Domain
-    rtype: Int[16, RType, 'RType']
+    rtype: Wrap[U16, RType]
 
-@struct
-class Header:
-    id:             Int16
-    flags:          Int16 
-    num_questions:  Int16
-    num_answers:    Int16
-    num_authority:  Int16
-    num_additional: Int16
+@compile(slots=True)
+class Header(Struct):
+    id:             U16
+    flags:          U16 
+    num_questions:  U16
+    num_answers:    U16
+    num_authority:  U16
+    num_additional: U16
 
-@dataclass
+@dataclass(slots=True)
 class Message:
     id:         int
     flags:      Flags
@@ -70,7 +70,7 @@ class Message:
     answers:    List[Answer]     = field(default_factory=list)
     authority:  List[Answer]     = field(default_factory=list)
     additional: List[BaseAnswer] = field(default_factory=list)
-    
+ 
     def raise_on_error(self):
         """raise exception if message contains an error"""
         if self.flags.rcode != RCode.NoError:
@@ -112,7 +112,7 @@ class Message:
         ctx = Context()
         raw = bytes(raw)
         header = Header.decode(ctx, raw)
-        flags  = Flags.fromint(header.flags) 
+        flags  = Flags.fromint(header.flags)
         # determine classes to parse content
         qclass, anclass, auclass = (Question, Answer, Answer) \
                 if flags.op != OpCode.Update else \

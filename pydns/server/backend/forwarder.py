@@ -1,8 +1,9 @@
 """
 Backend Recursive Client-Forwarder Extension
 """
-from dataclasses import dataclass
 from typing import ClassVar
+
+from pyderive import dataclass
 
 from . import Answers, Backend
 from ...client import BaseClient
@@ -13,12 +14,11 @@ __all__ = ['Forwarder']
 
 #** Classes **#
 
-@dataclass(repr=False)
+@dataclass(slots=True, repr=False)
 class Forwarder(Backend):
     """
     Recursive Dns-Client Lookup Forwarder when Backend returns no Results
     """
-    __slots__ = ('backend', 'client')
     source: ClassVar[str] = 'Forwarder'
     recursion_available: ClassVar[bool] = True
 

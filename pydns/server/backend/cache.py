@@ -3,9 +3,10 @@ Backend Extension to support In-Memory Answer Caching
 """
 import time
 import math
-import threading
-from dataclasses import dataclass, field
+from threading import Lock
 from typing import List, Set, Dict, ClassVar
+
+from pyderive import dataclass, field
 
 from . import Answers, Backend, RType, Answer
 from .memory import MemoryBackend
@@ -19,19 +20,15 @@ IGNORE = {MemoryBackend.source, Blacklist.source}
 
 #** Classes **#
 
-@dataclass
+@dataclass(slots=True)
 class CacheRecord:
     """
     Record Entry for In-Memory Cache
     """
-    __slots__ = ('answers', 'expiration', 'ttl', 'lifetime_mod')
-
-    answers:    List[Answer]
-    expiration: float
-    ttl:        int
-
-    def __post_init__(self):
-        self.lifetime_mod = 0
+    answers:      List[Answer]
+    expiration:   float
+    ttl:          int
+    lifetime_mod: int = field(default=0, init=False)
 
     def lifetime(self):
         """calculate lifetime remaining of record"""
@@ -44,31 +41,26 @@ class CacheRecord:
         self.lifetime_mod = elapsed
         return ttl_mod
 
-@dataclass(repr=False)
+@dataclass(slots=True, repr=False)
 class Cache(Backend):
     """
     In-Memory Cache Extension for Backend Results
     """
     source: ClassVar[str] = 'Cache'
-    __slots__ = (
-        'recursion_available',
-
-        'backend', 
-        'mutex', 
-        'authorities', 
-        'cache', 
-    )
 
     backend:    Backend
     expiration: int = 30
     maxsize:    int = 10000
     ignore:     Set[str] = field(default_factory=lambda: IGNORE)
+ 
+    mutex:       Lock                   = field(default_factory=Lock, init=False)
+    cache:       Dict[str, CacheRecord] = field(default_factory=dict, init=False)
+    authorities: Dict[bytes, bool]      = field(default_factory=dict, init=False)
 
+    recursion_available: bool = field(default=False, init=False)
+ 
     def __post_init__(self):
         self.recursion_available = self.backend.recursion_available
-        self.mutex = threading.Lock()
-        self.authorities: Dict[bytes, bool]      = {}
-        self.cache:       Dict[str, CacheRecord] = {}
 
     def is_authority(self, domain: bytes) -> bool:
         """

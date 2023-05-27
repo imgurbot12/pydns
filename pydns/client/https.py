@@ -2,8 +2,9 @@
 Web HTTP Based DNS Client
 """
 from urllib.request import Request, urlopen
-from dataclasses import dataclass
 from typing import Optional
+
+from pyderive import dataclass
 
 from . import BaseClient, Message
 
@@ -12,7 +13,7 @@ __all__ = ['HttpsClient']
 
 #** Classes **#
 
-@dataclass
+@dataclass(slots=True)
 class HttpsClient(BaseClient):
     url:     str           = 'https://cloudflare-dns.com/dns-query'
     timeout: Optional[int] = None
