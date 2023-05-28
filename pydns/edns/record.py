@@ -4,7 +4,7 @@ EDNS OPT Answer Varient Implementation
 from typing_extensions import Annotated, Self
 
 from pyderive import dataclass
-from pystructs import Context, Struct, Domain, U8, U16, Wrap, compile
+from pystructs import Context, Struct, Domain, U8, U16, Wrap
 
 from ..enum import RType
 from ..answer import BaseAnswer
@@ -17,7 +17,6 @@ ROOT = b''
 
 #** Classes **#
 
-@compile(slots=True)
 class Header(Struct):
     name:           Domain
     rtype:          Annotated[RType, Wrap[U16, RType]]

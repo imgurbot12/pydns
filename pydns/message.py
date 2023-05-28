@@ -48,13 +48,11 @@ def decode_answers(cls: Type[Answer], num: int, ctx: Context, raw: bytes):
 
 #** Classes **#
 
-@compile(slots=True)
 class PeekHeader(Struct):
     name:  Domain
     rtype: Wrap[U16, RType]
 
-@compile(slots=True)
-class Header(Struct):
+class Header(Struct, slots=True):
     id:             U16
     flags:          U16 
     num_questions:  U16

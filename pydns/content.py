@@ -26,16 +26,12 @@ __all__ = [
 #** Functions **#
 
 @dataclass_transform()
-def content(
-    cls:     Optional[type] = None, 
-    rtype:   Optional[RType] = None,
-    **kwargs
-):
+def content(cls: Optional[type] = None, rtype: Optional[RType] = None):
     """generate content class w/ given rtype"""
     def wrapper(cls):
         cls.rtype = rtype or RType[cls.__name__]
-        return compile(cls, **kwargs)
-    return wrapper if cls is None else wrapper(cls) #type: ignore
+        return cls
+    return wrapper if cls is None else wrapper(cls)
 
 #** Classes **#
 
@@ -50,24 +46,24 @@ class NULL(Content):
 class ANY(Content):
     pass
 
-@content(slots=True)
+@content
 class CNAME(Content):
     name: Domain
 
-@content(slots=True)
+@content
 class MX(Content):
     preference: U16
     exchange:   Domain
 
-@content(slots=True)
+@content
 class NS(Content):
     nameserver: Domain
 
-@content(slots=True)
+@content
 class PTR(Content):
     ptrname: Domain
 
-@content(slots=True)
+@content
 class SOA(Content):
     mname:     Domain
     rname:     Domain
@@ -77,29 +73,29 @@ class SOA(Content):
     expire:    U32
     minimum:   U32
 
-@content(slots=True)
+@content
 class TXT(Content):
     text: Annotated[bytes, SizedBytes[U32]]
 
-@content(slots=True)
+@content
 class A(Content):
     ip: IPv4
 
-@content(slots=True)
+@content
 class AAAA(Content):
     ip: IPv6
 
-@content(slots=True)
+@content
 class SRV(Content):
     priority: U16
     weight:   U16
     port:     U16
     target:   Domain
 
-class Literal(Content):
+class Literal(Content, slots=False):
     """handler for unsupported record types"""
-    rtype: RType
-    size:  int
+    rtype: ClassVar[RType]
+    size:  ClassVar[int]
  
     def __class_getitem__(cls, settings: Tuple[RType, int]) -> Type[Self]:
         rtype, size = settings

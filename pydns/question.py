@@ -3,7 +3,7 @@ DNS Question Implementation
 """
 from typing_extensions import Annotated
 
-from pystructs import Struct, U16, Wrap, Domain, compile
+from pystructs import Struct, U16, Wrap, Domain
 
 from .enum import RType, RClass
 
@@ -12,7 +12,6 @@ __all__ = ['Question', 'Zone']
 
 #** Classes **#
 
-@compile(slots=True)
 class Question(Struct):
     name:   Domain
     qtype:  Annotated[RType, Wrap[U16, RType]]

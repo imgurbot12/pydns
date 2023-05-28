@@ -7,7 +7,7 @@ from typing import Protocol
 from typing_extensions import Annotated, Self
 
 from pyderive import dataclass, field
-from pystructs import Context, Struct, Domain, U16, U32, Wrap, compile
+from pystructs import Context, Struct, Domain, U16, U32, Wrap
 
 from .content import Content, Literal
 from .enum import RType, RClass
@@ -36,7 +36,6 @@ def get_rclass(rtype: RType, size: Optional[int] = None) -> Type[Content]:
 
 #** Classes **#
 
-@compile(slots=True)
 class Header(Struct):
     name:   Domain
     rtype:  Annotated[RType, Wrap[U16, RType]]
@@ -68,7 +67,7 @@ class Answer(BaseAnswer):
     ttl:     int
     content: Content
     rclass:  RClass  = RClass.IN
-    
+ 
     @property
     def rtype(self) -> RType:
         return self.content.rtype
