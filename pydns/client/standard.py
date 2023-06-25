@@ -3,11 +3,12 @@ Standard UDP/TCP Client Implementations
 """
 import random
 import socket
-from dataclasses import dataclass
+from abc import ABC, abstractmethod
 from typing import List, Optional
 
 from pypool import Pool
 from pyserve import RawAddr
+from pyderive import dataclass
 
 from . import BaseClient, Message
 
@@ -19,8 +20,8 @@ __all__ = ['UdpClient', 'TcpClient']
 class SocketPool(Pool[socket.socket]):
     pass
 
-@dataclass
-class Client(BaseClient):
+@dataclass(slots=True)
+class Client(BaseClient, ABC):
     addresses:  List[RawAddr]
     block_size: int           = 8192
     pool_size:  Optional[int] = None
@@ -33,10 +34,12 @@ class Client(BaseClient):
             cleanup=self.cleanup,
             max_size=self.pool_size, 
             expiration=self.expiration)
-    
+   
+    @abstractmethod
     def newsock(self) -> socket.socket:
         raise NotImplementedError
 
+    @abstractmethod
     def cleanup(self, sock: socket.socket):
         raise NotImplementedError
 
@@ -48,7 +51,6 @@ class Client(BaseClient):
         """drain socket pool"""
         self.pool.drain()
 
-@dataclass
 class UdpClient(Client):
    
     def newsock(self) -> socket.socket:

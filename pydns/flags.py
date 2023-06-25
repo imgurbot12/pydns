@@ -2,8 +2,9 @@
 DNS Flags Implementation
 """
 from enum import IntFlag
-from dataclasses import dataclass
 from typing_extensions import Self
+
+from pyderive import dataclass
 
 from .enum import QR, OpCode, RCode
 
@@ -31,7 +32,7 @@ class Flag(IntFlag):
     Authenticated    = 1 << 5
     CheckingDisabled = 1 << 4
 
-@dataclass
+@dataclass(slots=True)
 class Flags:
     qr:                   QR
     op:                   OpCode

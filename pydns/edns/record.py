@@ -1,10 +1,10 @@
 """
 EDNS OPT Answer Varient Implementation
 """
-from dataclasses import dataclass
-from typing_extensions import Self
+from typing_extensions import Annotated, Self
 
-from pystructs import Context, Domain, Int, Int8, Int16, struct
+from pyderive import dataclass
+from pystructs import Context, Struct, Domain, U8, U16, Wrap
 
 from ..enum import RType
 from ..answer import BaseAnswer
@@ -17,17 +17,16 @@ ROOT = b''
 
 #** Classes **#
 
-@struct
-class Header:
+class Header(Struct):
     name:           Domain
-    rtype:          Int[16, RType, 'RType']
-    payload_size:   Int16
-    extended_rcode: Int8
-    version:        Int8
-    z:              Int16
-    data_length:    Int16
+    rtype:          Annotated[RType, Wrap[U16, RType]]
+    payload_size:   U16
+    extended_rcode: U8
+    version:        U8
+    z:              U16
+    data_length:    U16
 
-@dataclass
+@dataclass(slots=True)
 class EdnsAnswer(BaseAnswer):
     name:     bytes  = ROOT
     version:  int    = 0

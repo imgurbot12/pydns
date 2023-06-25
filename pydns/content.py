@@ -1,8 +1,8 @@
 """
 DNS Standard Content Sequences
 """
-from typing import Optional, Type, Tuple, ClassVar, Any
-from typing_extensions import Self
+from typing import Optional, Type, Tuple, ClassVar
+from typing_extensions import Annotated, Self, dataclass_transform
 
 from pystructs import *
 
@@ -25,25 +25,18 @@ __all__ = [
 
 #** Functions **#
 
-def content(cls: Optional[type] = None, rtype: Optional[RType] = None) -> 'Content':
+@dataclass_transform()
+def content(cls: Optional[type] = None, rtype: Optional[RType] = None):
     """generate content class w/ given rtype"""
     def wrapper(cls):
-        cls.rtype = rtype or RType[cls.__name__] 
-        return make_struct(cls)
-    return wrapper if cls is None else wrapper(cls) #type: ignore
+        cls.rtype = rtype or RType[cls.__name__]
+        return cls
+    return wrapper if cls is None else wrapper(cls)
 
 #** Classes **#
 
-class Content:
+class Content(Struct):
     rtype: ClassVar[RType]
-
-    @classmethod
-    def encode(cls, ctx: Context) -> bytes:
-        raise NotImplementedError
-
-    @classmethod
-    def decode(cls, ctx: Context, raw: bytes) -> Any:
-        raise NotImplementedError
 
 @content
 class NULL(Content):
@@ -59,7 +52,7 @@ class CNAME(Content):
 
 @content
 class MX(Content):
-    preference: Int16
+    preference: U16
     exchange:   Domain
 
 @content
@@ -74,36 +67,40 @@ class PTR(Content):
 class SOA(Content):
     mname:     Domain
     rname:     Domain
-    serialver: Int32
-    refresh:   Int32
-    retry:     Int32
-    expire:    Int32
-    minimum:   Int32
+    serialver: U32
+    refresh:   U32
+    retry:     U32
+    expire:    U32
+    minimum:   U32
 
 @content
 class TXT(Content):
-    text: SizedBytes[32]
+    text: Annotated[bytes, SizedBytes[U32]]
 
 @content
 class A(Content):
-    ip: Ipv4
+    ip: IPv4
 
 @content
 class AAAA(Content):
-    ip: Ipv6
+    ip: IPv6
 
 @content
 class SRV(Content):
-    priority: Int16
-    weight:   Int16
-    port:     Int16
+    priority: U16
+    weight:   U16
+    port:     U16
     target:   Domain
 
-class Literal(Content):
-    """handler for unsupported record types"""
-    rtype: RType
-    size:  int
-    
+class Literal(Content, slots=False):
+    """Handler for Unsupported Record Types"""
+    rtype: ClassVar[RType]
+    size:  ClassVar[int]
+
+    def __init_subclass__(cls, **_):
+        """prevent compiling subclasses of self"""
+        pass
+
     def __class_getitem__(cls, settings: Tuple[RType, int]) -> Type[Self]:
         rtype, size = settings
         return type(f'Unknown[{rtype.name}]', (cls, ), {

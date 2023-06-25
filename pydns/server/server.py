@@ -1,10 +1,10 @@
 from enum import IntEnum
 from logging import Logger, getLogger
-from dataclasses import dataclass, field
 from typing import Optional
 
 from pyserve import Address, Writer
 from pyserve import Session as BaseSession
+from pyderive import dataclass, field
 
 from .backend import Backend
 from ..enum import QR, OpCode, RType, RCode
