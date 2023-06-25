@@ -18,8 +18,8 @@ setup(
     install_requires=[
         'pypool3',
         'pyserve3',
+        'pyderive3',
         'pystructs3',
-        'dataclasses',
         'typing_extensions',
     ],
     classifiers=[
