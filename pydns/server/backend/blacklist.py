@@ -163,5 +163,3 @@ class Blacklist(Backend):
             return self.empty
         # otherwise do standard backend lookup
         return self.backend.get_answers(domain, rtype)
-
-print(Blacklist.source)

@@ -52,7 +52,7 @@ class PeekHeader(Struct):
     name:  Domain
     rtype: Wrap[U16, RType]
 
-class Header(Struct, slots=True):
+class Header(Struct):
     id:             U16
     flags:          U16 
     num_questions:  U16

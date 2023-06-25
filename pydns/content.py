@@ -93,10 +93,14 @@ class SRV(Content):
     target:   Domain
 
 class Literal(Content, slots=False):
-    """handler for unsupported record types"""
+    """Handler for Unsupported Record Types"""
     rtype: ClassVar[RType]
     size:  ClassVar[int]
- 
+
+    def __init_subclass__(cls, **_):
+        """prevent compiling subclasses of self"""
+        pass
+
     def __class_getitem__(cls, settings: Tuple[RType, int]) -> Type[Self]:
         rtype, size = settings
         return type(f'Unknown[{rtype.name}]', (cls, ), {
