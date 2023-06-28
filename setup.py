@@ -5,7 +5,7 @@ with open('README.md', 'r') as f:
 
 setup(
     name='pydns3',
-    version='0.0.8',
+    version='0.0.9',
     license='MIT',
     packages=find_packages(),
     url='https://github.com/imgurbot12/pydns',
