@@ -21,9 +21,10 @@ RecordEntries = Dict[str, List[Dict[str, Any]]]
 
 class MemoryBackend(Backend):
     """Simple In-Memory Backend for DNS Records"""
-    source: ClassVar[str] = 'MemDB'
-    
-    __slots__ = ('records', 'authorities', 'recursion_available')
+    source: ClassVar[str]     = 'MemDB'
+    recursion_available: bool = False
+ 
+    __slots__ = ('records', 'authorities')
 
     def __init__(self):
         self.records:     RecordDB   = {}
