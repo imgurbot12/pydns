@@ -107,17 +107,20 @@ class DbmBlockDB(BlockDB):
             self.dbm[domain] = b''
         # sync and reorganize data
         if hasattr(self.dbm, 'sync'):
-            self.dbm.sync()       #type: ignore
+            self.dbm.sync() #type: ignore
             if hasattr(self.dbm, 'reorganize'):
                 self.dbm.reorganize() #type: ignore
         # add source to sources
         sources = self.sources()
         sources.add(name)
         self.dbm[self.src_key] = b','.join(sources)
-    
+
     def ingest_file(self, fpath: str, name: Optional[str] = None):
         """
         ingest domains for the database from the following file
+
+        :param fpath: filepath to add to the blacklist-db
+        :param name:  set name of source for the given filepath
         """
         # only ingest the file if it hasnt been seen before or mtime changed
         name = name or os.path.basename(fpath)
@@ -132,8 +135,33 @@ class DbmBlockDB(BlockDB):
             self.dbm[fpath] = str(time).encode()
 
     def contains(self, domain: bytes) -> bool:
-        """check if domain is contained within the dbm key/value store"""
+        """
+        check if domain is contained within the dbm key/value store
+
+        :param domain: domain to check if in db
+        :return:       true if domain in db
+        """
         return domain in self.dbm
+ 
+    def add(self, domain: bytes):
+        """
+        add the specified domain to the db
+
+        :param domain: domain to add to the blacklist
+        """
+        self.ingest(b'_manual', (d for d in (domain, )))
+
+    def remove(self, domain: bytes) -> bool:
+        """
+        remove the specified domain from the db
+
+        :param domain: domain to remove from the blacklist
+        :return:       true if domain was present and removed
+        """
+        if domain in self.dbm:
+            del self.dbm[domain]
+            return True
+        return False
 
 @dataclass(slots=True, repr=False)
 class Blacklist(Backend):
@@ -144,21 +172,27 @@ class Blacklist(Backend):
 
     backend:   Backend
     blacklist: Set[bytes]
+    whitelist: Set[bytes]
     database:  Optional[BlockDB] = None
-    
+ 
     def __post_init__(self):
+        self.recursion_available = self.backend.recursion_available
         self.empty = Answers([], self.source)
+        self.blacklist -= self.whitelist
 
     def is_authority(self, domain: bytes) -> bool:
         return self.backend.is_authority(domain)
 
     def get_answers(self, domain: bytes, rtype: RType) -> Answers:
         """block lookups for blacklisted domains, otherwise do standard query"""
-        # check memory cache
-        if domain in self.blacklist:
+        # check whitelist memory cache
+        if domain in self.whitelist:
+            pass
+        # check blacklist memory cache
+        elif domain in self.blacklist:
             return self.empty
         # check slower database and move to cache if found
-        if self.database and self.database.contains(domain):
+        elif self.database and self.database.contains(domain): 
             self.blacklist.add(domain)
             return self.empty
         # otherwise do standard backend lookup
