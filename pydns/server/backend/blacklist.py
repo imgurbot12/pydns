@@ -5,7 +5,7 @@ import os
 import re
 import dbm
 from abc import abstractmethod
-from typing import Protocol, Generator, TextIO, ClassVar, Set, Optional
+from typing import List, Protocol, Generator, TextIO, ClassVar, Set, Optional
 
 from pyderive import dataclass
 
@@ -14,6 +14,7 @@ from . import Answers, Backend, RType
 #** Variables **#
 __all__ = [
     'is_domain',
+    'list_domains',
     'parse_blacklist',
 
     'BlockDB',
@@ -44,6 +45,15 @@ def is_domain(value: str) -> bool:
     match = domain_exact.match(value.encode("idna").decode("utf-8"))
     return match is not None
 
+def list_domains(text: str) -> List[str]:
+    """
+    retrieve domains contained within text
+
+    :param text: text potentially containing domains
+    :return:     list of domains found in text
+    """
+    return domain_find.findall(text)
+
 def parse_blacklist(f: TextIO) -> DomainGenerator:
     """
     parse blacklist file to include into blacklist backend
@@ -51,17 +61,13 @@ def parse_blacklist(f: TextIO) -> DomainGenerator:
     :param f: file-like object to parse domains from
     :return:  iterator to retrieve parsed domains
     """
-    skipped = []
-    double  = []
     for line in f.readlines():
         # skip commented lines
         if any(line.startswith(c) for c in '!#-/'):
-            skipped.append(line)
             continue
         # parse domains, there should only be one per line
         domains = domain_find.findall(line)
         if len(domains) != 1:
-            double.append(line)
             continue
         # yield single domains when found
         yield domains[0].encode()
