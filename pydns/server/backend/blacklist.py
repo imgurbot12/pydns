@@ -38,16 +38,43 @@ DomainGenerator = Generator[bytes, None, None]
 
 #** Functions **#
 
+def ignore_line(line: str) -> bool:
+    """
+    determine if blocklist file line should be ignored
+
+    :param line: line from file instance
+    :return:     true if line should be ignored
+    """
+    # ignore adguard path/rule specific blocks
+    if '/' in line or '#' in line or line.startswith('^'):
+        return True
+    if line.startswith('||') and not line.endswith('^'):
+        return True
+    return False
+
 def is_domain(value: str) -> bool:
     """
     return true if given string is a domain
     """
     match = domain_exact.match(value.encode("idna").decode("utf-8"))
-    if match is not None:
-        if '/' in value:
-            print('ignore', value)
-        return True
-    return False
+    return match is not None 
+
+def find_domain(line: str) -> Optional[str]:
+    """
+    attempt to find domain in single line of blocklist code
+    
+    :param line: line of blocklist potentially containing a domain to block
+    :return:     domain found in line
+    """
+    # skip commented lines
+    line = line.strip()
+    if any(line.startswith(c) for c in '!#-/'):
+        return
+    # skip lines with multiple potential domains or ignored lines
+    domains = domain_find.findall(line)
+    if len(domains) != 1 or ignore_line(line):
+        return
+    return domains[0]
 
 def list_domains(text: str) -> List[str]:
     """
@@ -56,7 +83,12 @@ def list_domains(text: str) -> List[str]:
     :param text: text potentially containing domains
     :return:     list of domains found in text
     """
-    return domain_find.findall(text)
+    domains = []
+    for line in text.splitlines():
+        domain = find_domain(line)
+        if domain:
+            domains.append(domain)
+    return domains
 
 def parse_blacklist(f: TextIO) -> DomainGenerator:
     """
@@ -65,22 +97,11 @@ def parse_blacklist(f: TextIO) -> DomainGenerator:
     :param f: file-like object to parse domains from
     :return:  iterator to retrieve parsed domains
     """
+    # yield single domains when found
     for line in f.readlines():
-        # skip commented lines
-        line = line.strip()
-        if any(line.startswith(c) for c in '!#-/'):
-            continue
-        # parse domains, there should only be one per line
-        domains = domain_find.findall(line)
-        if len(domains) != 1:
-            continue
-        # ignore adguard path/rule specific blocks
-        if '/' in line or '#' in line or line.startswith('^'):
-            continue
-        if line.startswith('||') and not line.endswith('^'):
-            continue
-        # yield single domains when found
-        yield domains[0].encode()
+        domain = find_domain(line)
+        if domain:
+            yield domain.encode()
 
 #** Classes **#
 
