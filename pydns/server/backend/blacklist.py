@@ -43,7 +43,11 @@ def is_domain(value: str) -> bool:
     return true if given string is a domain
     """
     match = domain_exact.match(value.encode("idna").decode("utf-8"))
-    return match is not None
+    if match is not None:
+        if '/' in value:
+            print('ignore', value)
+        return True
+    return False
 
 def list_domains(text: str) -> List[str]:
     """
@@ -63,11 +67,17 @@ def parse_blacklist(f: TextIO) -> DomainGenerator:
     """
     for line in f.readlines():
         # skip commented lines
+        line = line.strip()
         if any(line.startswith(c) for c in '!#-/'):
             continue
         # parse domains, there should only be one per line
         domains = domain_find.findall(line)
         if len(domains) != 1:
+            continue
+        # ignore adguard path/rule specific blocks
+        if '/' in line or '#' in line or line.startswith('^'):
+            continue
+        if line.startswith('||') and not line.endswith('^'):
             continue
         # yield single domains when found
         yield domains[0].encode()
@@ -89,9 +99,10 @@ class DbmBlockDB(BlockDB):
     """
     src_key = '__sources'
 
-    def __init__(self, path: str, flag: str = 'cf'):
+    def __init__(self, path: str, flag = 'cf'):
         self.dbm = dbm.open(path, flag=flag) #type: ignore
-        if dbm.whichdb(path) == 'dbm.dumb':
+        which = dbm.whichdb(path)
+        if which is None or which == 'dbm.dumb':
             raise RuntimeError('Python has no valid DBM library installed!')
 
     def sources(self) -> Set[bytes]:
