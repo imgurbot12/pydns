@@ -7,7 +7,7 @@ import dbm
 from abc import abstractmethod
 from typing import List, Protocol, Generator, TextIO, ClassVar, Set, Optional
 
-from pyderive import dataclass
+from pyderive import dataclass, field
 
 from . import Answers, Backend, RType
 
@@ -211,27 +211,57 @@ class Blacklist(Backend):
     backend:   Backend
     blacklist: Set[bytes]
     whitelist: Set[bytes]
+    wildcards: Set[bytes]        = field(default_factory=set)
     database:  Optional[BlockDB] = None
  
     def __post_init__(self):
         self.recursion_available = self.backend.recursion_available
         self.empty = Answers([], self.source)
         self.blacklist -= self.whitelist
+        self.blacklist |= self.wildcards
+        self.wildcards -= self.whitelist
 
     def is_authority(self, domain: bytes) -> bool:
+        """
+        :param domain: check if domain is authority
+        :return:       true if backend has authority over domain
+        """
         return self.backend.is_authority(domain)
 
-    def get_answers(self, domain: bytes, rtype: RType) -> Answers:
-        """block lookups for blacklisted domains, otherwise do standard query"""
-        # check whitelist memory cache
+    #NOTE: the wildcard search implementation is ~1.5-2x slower
+    # than using an algorithm like a prefix-tree, but this avoids
+    # using any 3rd party library and is fast enough for how
+    # simple the solution is
+    def is_blocked(self, domain: bytes) -> bool:
+        """
+        check if the following domain is blocked
+
+        :param domain: domain to check if blocked
+        :return:       true if domain is blocked else false
+        """
         if domain in self.whitelist:
-            pass
-        # check blacklist memory cache
-        elif domain in self.blacklist:
-            return self.empty
-        # check slower database and move to cache if found
-        elif self.database and self.database.contains(domain): 
+            return False
+        if domain in self.blacklist:
+            return True
+        # check if record in database
+        if self.database and self.database.contains(domain):
             self.blacklist.add(domain)
+            return True
+        # check if record in wildcard blacklist
+        for _ in range(0, domain.count(b'.')-1):
+            domain = domain.split(b'.', 1)[-1]
+            if domain in self.wildcards:
+                return True
+        return False
+
+    def get_answers(self, domain: bytes, rtype: RType) -> Answers:
+        """
+        block lookups for blacklisted domains, otherwise do standard query
+
+        :param domain: domain to check if blocked or return results
+        :param rtype:  record-type associated w/ query
+        :return:       empty-answers (if blocked), else standard search results
+        """
+        if self.is_blocked(domain): 
             return self.empty
-        # otherwise do standard backend lookup
         return self.backend.get_answers(domain, rtype)
