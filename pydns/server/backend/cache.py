@@ -66,13 +66,13 @@ class Cache(Backend):
     maxsize:    int      = 10000
     ignore:     Set[str] = field(default_factory=lambda: IGNORE)
     logger:     Logger   = field(default_factory=lambda: getLogger('pydns'))
- 
+
     mutex:       Lock                   = field(default_factory=Lock, init=False)
     cache:       Dict[str, CacheRecord] = field(default_factory=dict, init=False)
     authorities: Dict[bytes, bool]      = field(default_factory=dict, init=False)
 
     recursion_available: bool = field(default=False, init=False)
- 
+
     def __post_init__(self):
         self.logger              = self.logger.getChild('cache')
         self.recursion_available = self.backend.recursion_available
@@ -91,7 +91,7 @@ class Cache(Backend):
                 self.authorities.clear()
             self.authorities[domain] = authority
         return authority
- 
+
     def get_cache(self, domain: bytes, rtype: RType) -> Optional[Answers]:
         """
         retrieve from cache directly if present
@@ -111,6 +111,9 @@ class Cache(Backend):
         """
         save the given answers to cache for the specified domain/rtype
         """
+        if not answers.answers:
+            self.logger.debug(f'cannot cache empty record for {domain!r}')
+            return
         key = f'{domain}->{rtype.name}'
         with self.mutex:
             if len(self.cache) >= self.maxsize:
