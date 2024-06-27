@@ -50,7 +50,7 @@ def ignore_line(line: str) -> bool:
     # ignore adguard path/rule specific blocks
     if '/' in line or '#' in line or line.startswith('^'):
         return True
-    if line.startswith('||') and not line.endswith('^'):
+    if line.startswith('|') and not line.endswith('^'):
         return True
     return False
 
