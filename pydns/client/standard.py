@@ -32,9 +32,9 @@ class Client(BaseClient, ABC):
         self.pool = SocketPool(
             factory=self.newsock,
             cleanup=self.cleanup,
-            max_size=self.pool_size, 
+            max_size=self.pool_size,
             expiration=self.expiration)
-   
+
     @abstractmethod
     def newsock(self) -> socket.socket:
         raise NotImplementedError
@@ -46,13 +46,13 @@ class Client(BaseClient, ABC):
     def pickaddr(self) -> RawAddr:
         """pick random address from list of addresses"""
         return random.choice(self.addresses)
-    
+
     def drain(self):
         """drain socket pool"""
         self.pool.drain()
 
 class UdpClient(Client):
-   
+
     def newsock(self) -> socket.socket:
         """spawn new socket for the socket pool"""
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -62,7 +62,7 @@ class UdpClient(Client):
     def cleanup(self, sock: socket.socket):
         """cleanup socket object before expiration or deletion"""
         sock.close()
-    
+
 #TODO: include some sort of UDP retry if response doesnt come back after timeout
 
     def request(self, msg: Message) -> Message:

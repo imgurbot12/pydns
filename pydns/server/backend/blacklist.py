@@ -4,10 +4,11 @@ Backend Domain Blacklist Extension
 import os
 import re
 import dbm
+import enum
 from abc import abstractmethod
-from typing import List, Protocol, Generator, TextIO, ClassVar, Set, Optional
+from typing import List, NamedTuple, Protocol, Generator, TextIO, ClassVar, Set, Optional
 
-from pyderive import dataclass, field
+from pyderive import dataclass
 
 from . import Answers, Backend, RType
 
@@ -15,8 +16,9 @@ from . import Answers, Backend, RType
 __all__ = [
     'is_domain',
     'list_domains',
-    'parse_blacklist',
+    'parse_ruleset',
 
+    'DomainRule',
     'BlockDB',
     'DbmBlockDB',
 
@@ -34,7 +36,7 @@ domain_find = re.compile(re_expr, re.IGNORECASE)
 domain_exact = re.compile(f'^{re_expr}$', re.IGNORECASE)
 
 #: type definition for item generating domain names
-DomainGenerator = Generator[bytes, None, None]
+RuleGenerator = Generator['DomainRule', None, None]
 
 #** Functions **#
 
@@ -57,12 +59,12 @@ def is_domain(value: str) -> bool:
     return true if given string is a domain
     """
     match = domain_exact.match(value.encode("idna").decode("utf-8"))
-    return match is not None 
+    return match is not None
 
 def find_domain(line: str) -> Optional[str]:
     """
     attempt to find domain in single line of blocklist code
-    
+
     :param line: line of blocklist potentially containing a domain to block
     :return:     domain found in line
     """
@@ -90,20 +92,52 @@ def list_domains(text: str) -> List[str]:
             domains.append(domain)
     return domains
 
-def parse_blacklist(f: TextIO) -> DomainGenerator:
+def parse_ruleset(f: TextIO) -> RuleGenerator:
     """
-    parse blacklist file to include into blacklist backend
-    
+    parse ruleset file to include into whitelist/blacklist backend
+
     :param f: file-like object to parse domains from
     :return:  iterator to retrieve parsed domains
     """
-    # yield single domains when found
     for line in f.readlines():
+        line   = line.strip()
         domain = find_domain(line)
-        if domain:
-            yield domain.encode()
+        if not domain:
+            continue
+        if line.startswith('@@'):
+            yield DomainRule(RuleStatus.WHITELIST, domain.encode())
+        else:
+            yield DomainRule(RuleStatus.BLACKLIST, domain.encode())
+
+def split_domains(domain: bytes) -> List[bytes]:
+    """
+    split base-domain into all possible subdomains
+    example: www.example.com => [www.example.com, example.com]
+
+    :param domain: domain to be split into items
+    :return:       split domain list
+    """
+    domains = []
+    while domain.count(b'.') > 0:
+        domains.append(domain)
+        _, domain = domain.split(b'.', 1)
+    return domains
 
 #** Classes **#
+
+class RuleStatus(enum.Enum):
+    """
+    Declaration of Domain Match Status
+    """
+    WHITELIST = False
+    BLACKLIST = True
+
+class DomainRule(NamedTuple):
+    """
+    Parsed Rule from RuleSet
+    """
+    status: RuleStatus
+    domain: bytes
 
 class BlockDB(Protocol):
     """
@@ -111,8 +145,20 @@ class BlockDB(Protocol):
     """
 
     @abstractmethod
-    def contains(self, domain: bytes) -> bool:
+    def match_exact(self, domain: bytes) -> Optional[bool]:
         raise NotImplementedError
+
+    def match(self, domain: bytes) -> Optional[bool]:
+        """
+        check if domain is contained within the database
+
+        :param domain: domain to check if in db
+        :return:       true if domain in db
+        """
+        for match in split_domains(domain):
+            rule = self.match_exact(match)
+            if rule is not None:
+                return rule
 
 class DbmBlockDB(BlockDB):
     """
@@ -120,7 +166,7 @@ class DbmBlockDB(BlockDB):
     """
     src_key = '__sources'
 
-    def __init__(self, path: str, flag = 'cf'):
+    def __init__(self, path: str, flag = 'c'):
         self.dbm = dbm.open(path, flag=flag) #type: ignore
         which = dbm.whichdb(path)
         if which is None or which == 'dbm.dumb':
@@ -130,7 +176,7 @@ class DbmBlockDB(BlockDB):
         """retrieve list of ingested sources"""
         return set(self.dbm.get(self.src_key, b'').split(b','))
 
-    def ingest(self, name: bytes, src: DomainGenerator, validate: bool = True):
+    def ingest(self, name: bytes, src: RuleGenerator, validate: bool = True):
         """
         ingest the given source of domain objects
 
@@ -139,15 +185,15 @@ class DbmBlockDB(BlockDB):
         :param validate: validate domains as their being ingested if true
         """
         # write domains one by one into database
-        for domain in src:
-            if validate and not is_domain(domain.decode()):
+        for rule in src:
+            if validate and not is_domain(rule.domain.decode()):
                 continue
-            self.dbm[domain] = b''
+            self.dbm[rule.domain] = 'b' if rule.status.value is True else 'w'
         # sync and reorganize data
         if hasattr(self.dbm, 'sync'):
             self.dbm.sync() #type: ignore
-            if hasattr(self.dbm, 'reorganize'):
-                self.dbm.reorganize() #type: ignore
+        if hasattr(self.dbm, 'reorganize'):
+            self.dbm.reorganize() #type: ignore
         # add source to sources
         sources = self.sources()
         sources.add(name)
@@ -168,20 +214,21 @@ class DbmBlockDB(BlockDB):
             return
         # process file and ingest domains and then cache last mtime
         with open(fpath, 'r') as f:
-            src = parse_blacklist(f)
+            src = parse_ruleset(f)
             self.ingest(name.encode(), src, validate=False)
             self.dbm[fpath] = str(time).encode()
 
-    def contains(self, domain: bytes) -> bool:
+    def match_exact(self, domain: bytes) -> Optional[bool]:
         """
-        check if domain is contained within the dbm key/value store
+        check if exact-domain is contained within the dbm key/value store
 
         :param domain: domain to check if in db
         :return:       true if domain in db
         """
-        return domain in self.dbm
- 
-    def add(self, domain: bytes):
+        match = self.dbm.get(domain)
+        return match == b'b' if match is not None else None
+
+    def add(self, domain: DomainRule):
         """
         add the specified domain to the db
 
@@ -211,15 +258,12 @@ class Blacklist(Backend):
     backend:   Backend
     blacklist: Set[bytes]
     whitelist: Set[bytes]
-    wildcards: Set[bytes]        = field(default_factory=set)
     database:  Optional[BlockDB] = None
- 
+
     def __post_init__(self):
         self.recursion_available = self.backend.recursion_available
         self.empty = Answers([], self.source)
         self.blacklist -= self.whitelist
-        self.blacklist |= self.wildcards
-        self.wildcards -= self.whitelist
 
     def is_authority(self, domain: bytes) -> bool:
         """
@@ -228,10 +272,6 @@ class Blacklist(Backend):
         """
         return self.backend.is_authority(domain)
 
-    #NOTE: the wildcard search implementation is ~1.5-2x slower
-    # than using an algorithm like a prefix-tree, but this avoids
-    # using any 3rd party library and is fast enough for how
-    # simple the solution is
     def is_blocked(self, domain: bytes) -> bool:
         """
         check if the following domain is blocked
@@ -239,19 +279,24 @@ class Blacklist(Backend):
         :param domain: domain to check if blocked
         :return:       true if domain is blocked else false
         """
-        if domain in self.whitelist:
+        # check if domain in in-memory whitelist of blacklist
+        domains = split_domains(domain)
+        if any(match in self.whitelist for match in domains):
             return False
-        if domain in self.blacklist:
+        if any(match in self.blacklist for match in domains):
             return True
         # check if record in database
-        if self.database and self.database.contains(domain):
-            self.blacklist.add(domain)
-            return True
-        # check if record in wildcard blacklist
-        for _ in range(0, domain.count(b'.')-1):
-            domain = domain.split(b'.', 1)[-1]
-            if domain in self.wildcards:
-                return True
+        if self.database:
+            for match in domains:
+                matches = self.database.match_exact(match)
+                if matches is True:
+                    self.blacklist.add(domain)
+                    self.blacklist.add(match)
+                    return True
+                if matches is False:
+                    self.whitelist.add(domain)
+                    self.whitelist.add(match)
+                    return False
         return False
 
     def get_answers(self, domain: bytes, rtype: RType) -> Answers:
@@ -262,6 +307,6 @@ class Blacklist(Backend):
         :param rtype:  record-type associated w/ query
         :return:       empty-answers (if blocked), else standard search results
         """
-        if self.is_blocked(domain): 
+        if self.is_blocked(domain):
             return self.empty
         return self.backend.get_answers(domain, rtype)
