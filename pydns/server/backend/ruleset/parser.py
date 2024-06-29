@@ -53,6 +53,9 @@ domain_find = re.compile(re_expr, re.IGNORECASE)
 #: compiled regex expression to match domains as full-string only
 domain_exact = re.compile(f'^{re_expr}$', re.IGNORECASE)
 
+#: allowed (but not supported) adguard options
+ALLOWED_OPTIONS = {'dnsrewrite', 'important'}
+
 #** Functions **#
 
 #NOTE: current implementation ignores existing adguard filter
@@ -102,7 +105,9 @@ def parse_rule(line: str) -> Optional[RuleDef]:
     # parse adguard options from rule: ||example.com^$settings=1
     rule = line.strip('@')
     if rule.startswith('|') and '$' in rule:
-        rule, _ = rule.rsplit('$', 1)
+        rule, options = rule.rsplit('$', 1)
+        if not any(opt in options for opt in ALLOWED_OPTIONS):
+            return
     # check if rule is in old `/etc/hosts` style format: `0.0.0.0 example.com`
     if ' ' in rule:
         start, end = rule.split(' ', 1)
@@ -126,8 +131,6 @@ def parse_rule(line: str) -> Optional[RuleDef]:
     if not any(rule.startswith(c) for c in '|*'):
         clean_rule = '*' + rule
     if not any(rule.endswith(c) for c in '^|*'):
-        clean_rule += '*'
-    if not rule.endswith('|') and not clean_rule.endswith('*'):
         clean_rule += '*'
     # handle wildcard domain rules. anything with a `*` is safely a wildcard
     if '*' in clean_rule:
