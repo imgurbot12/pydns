@@ -11,13 +11,13 @@ from pyderive import InitVar, dataclass, field
 
 from . import Answers, Backend, RType, Answer
 from .memory import MemoryBackend
-from .blacklist import Blacklist
+from .ruleset import RuleBackend
 
 #** Variables **#
 __all__ = ['Cache']
 
 #: default set of other backend sources to ignore
-IGNORE = {MemoryBackend.source, Blacklist.source}
+IGNORE = {MemoryBackend.source, RuleBackend.source}
 
 #** Classes **#
 

@@ -6,15 +6,15 @@ from ... import RType, Answer
 #** Variables **#
 __all__ = [
     'Answers',
-    'Backend', 
+    'Backend',
 
     'Cache',
     'Forwarder',
     'MemoryBackend',
 
-    'BlockDB',
-    'DbmBlockDB',
-    'Blacklist',
+    'RuleEngine',
+    'RuleBackend',
+    'DbmRuleEngine',
 ]
 
 #** Classes **#
@@ -43,4 +43,4 @@ class Backend(Protocol):
 from .cache import Cache
 from .forwarder import Forwarder
 from .memory import MemoryBackend
-from .blacklist import BlockDB, DbmBlockDB, Blacklist
+from .ruleset import RuleEngine, RuleBackend, DbmRuleEngine
