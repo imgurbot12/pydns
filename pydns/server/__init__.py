@@ -3,8 +3,8 @@ DNS Extensible Server Implementation
 """
 
 #** Variables **#
-__all__ = ['Session']
+__all__ = ['Server']
 
 #** Imports **#
-from .server import Session
+from .server import Server
 

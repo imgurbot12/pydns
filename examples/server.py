@@ -6,7 +6,7 @@ import logging
 from pyserve import listen_udp_threaded
 
 from pydns.client import UdpClient
-from pydns.server import Session
+from pydns.server import Server
 from pydns.server.backend import MemoryBackend, Forwarder, Cache
 
 # declare and configure server address and forwarding client addresses
@@ -15,21 +15,21 @@ client_addrs = [('8.8.8.8', 53)]
 
 # prepare simple memory backend as base provider
 backend = MemoryBackend()
-backend.save_domain(b'example.com', {
+backend.save_domain_dict(b'example.com', {
     'A':   [{'ip': '1.2.3.4'}],
     'MX':  [{'preference': 1, 'exchange': b'mx.example.com'}],
     'SOA': [{
-        'mname': b'mname.example.com', 
-        'rname': b'rname.example.com', 
-        'serialver': 1, 
-        'refresh': 2, 
-        'retry': 3, 
-        'expire': 4, 
+        'mname': b'mname.example.com',
+        'rname': b'rname.example.com',
+        'serialver': 1,
+        'refresh': 2,
+        'retry': 3,
+        'expire': 4,
         'minimum': 5
     }]
 })
 
-# wrap memory backend w/ client forwarder 
+# wrap memory backend w/ client forwarder
 client  = UdpClient(client_addrs)
 backend = Forwarder(backend, client)
 
@@ -42,4 +42,4 @@ logger = logging.getLogger('myserver')
 logger.setLevel(logging.INFO)
 
 # launch server and run forever using pyserve
-listen_udp_threaded(server_addr, Session, backend=backend, logger=logger)
+listen_udp_threaded(server_addr, Server, backend=backend, logger=logger)

@@ -1,3 +1,6 @@
+"""
+DNS Enumeration Definitions
+"""
 from enum import IntEnum
 
 #** Variables **#
@@ -117,7 +120,7 @@ class RType(IntEnum):
     L64    = 106
     LP     = 107
     EUI48  = 108
-    EUI64  = 109 
+    EUI64  = 109
 
     TKEY  = 249
     TSIG  = 250
@@ -130,7 +133,7 @@ class RType(IntEnum):
     DOTA  = 259
 
     TA  = 32768
-    DLV = 32769 
+    DLV = 32769
 
 class RClass(IntEnum):
     IN   = 1

@@ -13,7 +13,7 @@ from ..edns import EdnsAnswer
 from ..exceptions import DnsError, NotImplemented
 
 #** Variables **#
-__all__ = ['Session']
+__all__ = ['Server']
 
 #DONE: error on session generation failure on startup of pyserve service
 #DONE: ignore server-shutdown failure on udp-sockets (move override to only tcp impl)
@@ -36,11 +36,11 @@ class Mode(IntEnum):
     THREADED_ASYNC = 4
 
 @dataclass
-class Session(BaseSession):
+class Server(BaseSession):
     """Extendable Implementation of DNS Server Session Manager"""
     backend: Backend
-    logger:  Logger  = field(default_factory=lambda: getLogger('pydns'))
-    
+    logger:  Logger = field(default_factory=lambda: getLogger('pydns'))
+
     ### DNS Handlers
 
     def process_query(self, msg: Message):
@@ -60,13 +60,15 @@ class Session(BaseSession):
                 answers  = answers.copy()
                 answers += more
             # report and assign answers
-            self.logger.info(f'{self.addr_str} | {q.name} {q.qtype.name} answers={len(answers)} src={source}')
+            self.logger.info(
+                f'{self.addr_str} | {q.name} {q.qtype.name} '
+                f'answers={len(answers)} src={source}')
             for answer in answers:
                 if answer.rtype == RType.SOA:
                     msg.authority.append(answer)
                 else:
                     msg.answers.append(answer)
-    
+
     def process_status(self, msg: Message):
         """
         process dns status request
@@ -86,7 +88,7 @@ class Session(BaseSession):
         raise NotImplemented
 
     ### Standard Handlers
-    
+
     def connection_made(self, addr: Address, writer: Writer):
         """
         handle session initialization on connection-made
@@ -101,7 +103,7 @@ class Session(BaseSession):
         parse raw packet-data and process request
         """
         self.logger.debug(f'{self.addr_str} | recieved {len(data)} bytes')
-        msg = Message.decode(data)
+        msg = Message.unpack(data)
         # ignore request if not a request
         if msg.flags.qr != QR.Question:
             return
@@ -123,8 +125,7 @@ class Session(BaseSession):
             elif msg.flags.op == OpCode.Update:
                 self.process_update(msg)
             else:
-                raise NotImplemented
-            # process question lookups
+                raise NotImplementedError(f'Unsupported OpCode: {msg.flags.op}')
         except DnsError as e:
             msg.flags.rcode = e.rcode
         except Exception as e:
@@ -132,7 +133,7 @@ class Session(BaseSession):
             raise e
         finally:
             # send response
-            data = msg.encode()
+            data = msg.pack()
             self.logger.debug(f'{self.addr_str} | sent {len(data)} bytes')
             self.writer.write(data)
 

@@ -1,100 +1,133 @@
 """
-DNS Answer Record Instance/Format
+DNS Answer Object Definitions
 """
-from typing import Optional, Type
 from abc import abstractmethod
-from typing import Protocol
+from typing import Optional, Protocol, Type
 from typing_extensions import Annotated, Self
 
 from pyderive import dataclass, field
-from pystructs import Context, Struct, Domain, U16, U32, Wrap
+from pystructs import U16, U32, Context, Domain, Struct
 
-from .content import Content, Literal
 from .enum import RType, RClass
-from . import content
+from .content import ANY, CONTENT_MAP, Content, Unknown
 
 #** Variables **#
 __all__ = ['BaseAnswer', 'Answer', 'PreRequisite', 'Update']
 
-#: all objects exported by content
-CONTENT_ALL = [getattr(content, name) for name in content.__all__]
-
-#: map of content-types mapped to content objects
-CONTENT_MAP = {r.rtype:r for r in CONTENT_ALL if issubclass(r, Content)}
-
 #** Functions **#
 
-def get_rclass(rtype: RType, size: Optional[int] = None) -> Type[Content]:
-    """retrieve record content class based on record-type"""
-    # get working content class if rtype is supported
+def get_ctype(rtype: RType, size: Optional[int] = None) -> Type[Content]:
+    """
+    retrieve record content type based on record-type (and size if specified)
+
+    :param rtype: record-type of requested object type
+    :param size:  optional size-hint for record-type
+    :return:      content record type
+    """
     if rtype in CONTENT_MAP:
         return CONTENT_MAP[rtype]
-    # else just encapsulate in sized-bytes object
     if size is not None:
-        return Literal[rtype, size]
-    raise ValueError(f'unsupported rtype: {rtype.name!r}')
+        return Unknown.new(rtype, size)
+    raise ValueError(f'Unsupported RR Type: {rtype.name!r}')
+
+def peek_rtype(raw: bytes, ctx: Context) -> RType:
+    """
+    peek next anwser in buffer to retrieve specified RR Type
+    """
+    idx  = ctx.index
+    peek = PeekHeader.unpack(raw, ctx)
+    ctx.index = idx
+    return peek.rtype
 
 #** Classes **#
 
-class Header(Struct):
-    name:   Domain
-    rtype:  Annotated[RType, Wrap[U16, RType]]
-    rclass: Annotated[RClass, Wrap[U16, RClass]]
-    ttl:    U32
+#NOTE: The nature of dns domain name compression prevents
+# the simple implementation of including the content-size
+# and content-body within `AnswerStruct` with something like
+# a `HintedBytes(U16)` instance which would require recursively
+# packing/unpacking the content assigned to a bytearray.
+
+class PeekHeader(Struct):
+    name:  Domain
+    rtype: Annotated[RType, U16]
+
+class AnswerHeader(PeekHeader):
+    rclass:  Annotated[RClass, U16]
+    ttl:     U32
 
 class BaseAnswer(Protocol):
     """Baseclass for defining `Answer` objects"""
     name: bytes
-    
+
     @property
     @abstractmethod
     def rtype(self) -> RType:
         raise NotImplementedError
 
     @abstractmethod
-    def encode(self, ctx: Context) -> bytes:
+    def pack(self, ctx: Optional[Context] = None) -> bytes:
+        """
+        pack answer object into serialized bytes
+
+        :param ctx: serialization context object
+        :return:    serialized bytes
+        """
         raise NotImplementedError
 
     @classmethod
     @abstractmethod
-    def decode(cls, ctx: Context, raw: bytes) -> Self:
+    def unpack(cls, raw: bytes, ctx: Optional[Context] = None) -> Self:
+        """
+        unpack serialized bytes into deserialized answer object
+
+        :param raw: raw byte buffer
+        :param ctx: deserialization context object
+        :return:    unpacked answer object
+        """
         raise NotImplementedError
 
 @dataclass(slots=True)
 class Answer(BaseAnswer):
-    """Standard DNS Answer Implementation"""
+    """
+    Standard DNS Answer Implementation
+    """
     name:    bytes
     ttl:     int
     content: Content
-    rclass:  RClass  = RClass.IN
- 
+    rclass:  RClass = RClass.IN
+
     @property
     def rtype(self) -> RType:
         return self.content.rtype
 
-    def encode(self, ctx: Context) -> bytes:
-        head = Header(self.name, self.rtype, self.rclass, self.ttl).encode(ctx)
-        ctx.index += 2 # pre-increment index since body-size goes before content
-        body = self.content.encode(ctx)
+    def pack(self, ctx: Optional[Context] = None) -> bytes:
+        ctx  = ctx or Context()
+        head = AnswerHeader(name=self.name, rtype=self.content.rtype,
+            rclass=self.rclass, ttl=self.ttl).pack(ctx)
+        ctx.index += 2 # pre-increment index (placeholder for size)
+        body = self.content.pack(ctx)
         size = len(body).to_bytes(2, 'big')
         return head + size + body
 
     @classmethod
-    def decode(cls, ctx: Context, raw: bytes) -> Self:
-        # parse header and size of body
-        header = Header.decode(ctx, raw)
-        size   = int.from_bytes(ctx.slice(raw, 2), 'big')
-        # determine content-type based on rtype in header
-        rclass  = get_rclass(header.rtype, size)
-        content = rclass.decode(ctx, raw)
+    def unpack(cls, raw: bytes, ctx: Optional[Context] = None) -> Self:
+        ctx     = ctx or Context()
+        header  = AnswerHeader.unpack(raw, ctx)
+        size    = int.from_bytes(ctx.slice(raw, 2), 'big')
+        ctype   = get_ctype(header.rtype, size)
+        content = ctype.unpack(raw, ctx)
         return cls(header.name, header.ttl, content, header.rclass)
 
 @dataclass(slots=True)
 class PreRequisite(Answer):
-    """Alias for Answer in UPDATE action DNS Requests with Sensible Defaults"""
+    """
+    Alias for Answer in UPDATE action DNS Requests with Sensible Defaults
+    """
     ttl:     int = 0
-    content: Content = field(default=content.ANY)
+    content: Content = field(default=ANY)
 
 class Update(Answer):
-    """Alias of Answer in UPDATE action DNS Requests"""
+    """
+    Alias for Answer in UPDATE action DNS Requests
+    """
     pass

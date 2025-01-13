@@ -1,9 +1,8 @@
 """
-DNS Question Implementation
+DNS Question Object Definitions
 """
+from pystructs import U16, Domain, Struct
 from typing_extensions import Annotated
-
-from pystructs import Struct, U16, Wrap, Domain
 
 from .enum import RType, RClass
 
@@ -14,9 +13,11 @@ __all__ = ['Question', 'Zone']
 
 class Question(Struct):
     name:   Domain
-    qtype:  Annotated[RType, Wrap[U16, RType]]
-    qclass: Annotated[RClass, Wrap[U16, RClass]] = RClass.IN
+    qtype:  Annotated[RType, U16]
+    qclass: Annotated[RClass, U16] = RClass.IN
 
 class Zone(Question):
-    """Alias of Question in UPDATE action DNS Requests"""
+    """
+    Alias of Question in UPDATE action DNS Requests
+    """
     pass

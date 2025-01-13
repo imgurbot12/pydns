@@ -1,5 +1,5 @@
 """
-Web HTTP Based DNS Client
+Web HTTPS Based DNS Client
 """
 from urllib.request import Request, urlopen
 from typing import Optional
@@ -31,11 +31,11 @@ class HttpsClient(BaseClient):
         :param msg: request message
         :return:    response message
         """
-        data    = msg.encode()
+        data    = msg.pack()
         req     = Request(self.url, data=data, headers=self.headers)
         res     = urlopen(req, timeout=self.timeout)
         content = res.read()
         if res.status != 200:
             raise RuntimeError(f'Invalid Response: {res.status} {content}')
-        return Message.decode(content)
+        return Message.unpack(content)
 

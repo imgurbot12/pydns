@@ -1,10 +1,11 @@
 """
 EDNS OPT Answer Varient Implementation
 """
+from typing import Optional
 from typing_extensions import Annotated, Self
 
 from pyderive import dataclass
-from pystructs import Context, Struct, Domain, U8, U16, Wrap
+from pystructs import Context, Struct, Domain, U8, U16
 
 from ..enum import RType
 from ..answer import BaseAnswer
@@ -17,9 +18,9 @@ ROOT = b''
 
 #** Classes **#
 
-class Header(Struct):
+class EdnsHeader(Struct):
     name:           Domain
-    rtype:          Annotated[RType, Wrap[U16, RType]]
+    rtype:          Annotated[RType, U16]
     payload_size:   U16
     extended_rcode: U8
     version:        U8
@@ -37,20 +38,21 @@ class EdnsAnswer(BaseAnswer):
     def rtype(self) -> RType:
         return RType.OPT
 
-    def encode(self, ctx: Context) -> bytes:
-        return Header(
-            name=self.name, 
-            rtype=self.rtype, 
-            payload_size=self.udp_size, 
-            extended_rcode=0, 
-            version=self.version, 
-            z=0, 
+    def pack(self, ctx: Optional[Context] = None) -> bytes:
+        return EdnsHeader(
+            name=self.name,
+            rtype=self.rtype,
+            payload_size=self.udp_size,
+            extended_rcode=0,
+            version=self.version,
+            z=0,
             data_length=len(self.content)
-        ).encode(ctx)
+        ).pack(ctx)
 
     @classmethod
-    def decode(cls, ctx: Context, raw: bytes) -> Self:
-        header  = Header.decode(ctx, raw)
+    def unpack(cls, raw: bytes, ctx: Optional[Context] = None) -> Self:
+        ctx     = ctx or Context()
+        header  = EdnsHeader.unpack(raw, ctx)
         content = ctx.slice(raw, header.data_length)
         return cls(
             name=header.name,

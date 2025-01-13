@@ -20,7 +20,7 @@ class Forwarder(Backend):
     Recursive Dns-Client Lookup Forwarder when Backend returns no Results
     """
     source: ClassVar[str] = 'Forwarder'
-    recursion_available: ClassVar[bool] = True
+    recursion_available: ClassVar[bool] = True #type: ignore
 
     backend: Backend
     client:  BaseClient

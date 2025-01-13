@@ -1,36 +1,29 @@
 """
 DNS RCode Exceptions
 """
-from typing import Dict, Type, Optional, Any
+from typing import Any, Optional
 
 from .enum import RCode
 
 #** Variables **#
 __all__ = [
-    'make_error',
-
     'DnsError',
     'ServerFailure',
     'NonExistantDomain',
     'NotImplemented',
 ]
 
-_EXCEPTIONS: Dict[RCode, Type[Exception]] = {}
-
 #** Functions **#
 
-def make_error(rcode: RCode, message: Any = None):
+def raise_error(rcode: RCode, message: Any = None):
     """
-    retrieve best exception object to match the given rcode
+    raise best exception object to match the given rcode
+
+    :param rcode:   response code from message
+    :param message: message to include with exception
     """
-    # cache map of exceptions in module
-    global _EXCEPTIONS
-    if not _EXCEPTIONS:
-        for value in globals().values():
-            if isinstance(value, type) and issubclass(value, DnsError):
-                _EXCEPTIONS[value.rcode] = value
-    # retrieve best-matching exception class based on rcode
-    eclass = _EXCEPTIONS.get(rcode, DnsError)
+    global EXCEPTION_MAP
+    eclass = EXCEPTION_MAP.get(rcode, DnsError)
     raise eclass(message, rcode)
 
 #** Classes **#
@@ -55,3 +48,10 @@ class NonExistantDomain(DnsError):
 
 class NotImplemented(DnsError):
     rcode = RCode.NotImplemented
+
+#** Exceptions **#
+
+#: cheeky way of collecting all exception types into map based on their RCode
+EXCEPTION_MAP = {v.rcode:v
+    for v in globals().values()
+    if isinstance(v, type) and issubclass(v, DnsError) and v is not DnsError}

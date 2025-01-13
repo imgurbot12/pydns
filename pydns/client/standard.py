@@ -23,9 +23,9 @@ class SocketPool(Pool[socket.socket]):
 @dataclass(slots=True)
 class Client(BaseClient, ABC):
     addresses:  List[RawAddr]
-    block_size: int           = 8192
+    block_size: int           = 65535
     pool_size:  Optional[int] = None
-    expiration: Optional[int] = None
+    expiration: Optional[int] = 15
     timeout:    int           = 10
 
     def __post_init__(self):
@@ -37,51 +37,59 @@ class Client(BaseClient, ABC):
 
     @abstractmethod
     def newsock(self) -> socket.socket:
+        """
+        spawn new socket object to make request
+
+        :return: new socket object
+        """
         raise NotImplementedError
 
     @abstractmethod
     def cleanup(self, sock: socket.socket):
+        """
+        close and clean an existing socket object
+
+        :param sock: socket object
+        """
         raise NotImplementedError
 
     def pickaddr(self) -> RawAddr:
-        """pick random address from list of addresses"""
+        """
+        pick random address from list of addresses
+
+        :return: random dns address to make request
+        """
         return random.choice(self.addresses)
 
     def drain(self):
-        """drain socket pool"""
+        """
+        drain socket pool
+        """
         self.pool.drain()
 
 class UdpClient(Client):
 
     def newsock(self) -> socket.socket:
-        """spawn new socket for the socket pool"""
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.settimeout(self.timeout)
         return sock
 
     def cleanup(self, sock: socket.socket):
-        """cleanup socket object before expiration or deletion"""
         sock.close()
 
-#TODO: include some sort of UDP retry if response doesnt come back after timeout
-
     def request(self, msg: Message) -> Message:
-        """
-        send request to dns-server and recieve response
-        """
         with self.pool.reserve() as sock:
             # send request
             addr = self.pickaddr()
-            data = msg.encode()
+            data = msg.pack()
             sock.sendto(data, addr)
             # recieve response
-            data = sock.recv(self.block_size)
-            return Message.decode(data)
+            data, _ = sock.recvfrom(self.block_size)
+            return Message.unpack(data)
 
 class TcpClient(Client):
 
     def newsock(self) -> socket.socket:
-        """spawn new socket for the socket pool"""
         addr = self.pickaddr()
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(self.timeout)
@@ -89,17 +97,13 @@ class TcpClient(Client):
         return sock
 
     def cleanup(self, sock: socket.socket):
-        """shutdown and cleanup tcp socket after expiration or deletion"""
         sock.shutdown(socket.SHUT_RDWR)
         sock.close()
 
     def request(self, msg: Message) -> Message:
-        """
-        send request to dns-server and recieve response
-        """
         with self.pool.reserve() as sock:
             # send request
-            data = msg.encode()
+            data = msg.pack()
             data = len(data).to_bytes(2, 'big') + data
             sock.send(data)
             # recieve size of response
@@ -107,5 +111,5 @@ class TcpClient(Client):
             size  = int.from_bytes(sizeb, 'big')
             # read data from size
             data = sock.recv(size)
-            return Message.decode(data)
+            return Message.unpack(data)
 

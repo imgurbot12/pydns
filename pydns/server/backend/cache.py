@@ -5,7 +5,7 @@ import time
 import math
 from logging import Logger, getLogger
 from threading import Lock
-from typing import List, Set, Dict, ClassVar, Optional
+from typing import ClassVar, Dict, List, Optional, Set
 
 from pyderive import InitVar, dataclass, field
 
@@ -31,8 +31,10 @@ class CacheRecord:
     expires:    float = field(init=False)
     accessed:   float = field(init=False)
 
-    def __post_init__(self, expiration: int):
-        """calculate expiration-time and last-accessed time"""
+    def __post_init__(self, expiration: int): #type: ignore
+        """
+        calculate expiration-time and last-accessed time
+        """
         ttl = min(a.ttl for a in self.answers)
         ttl = min(ttl, expiration) if expiration else ttl
         now = time.time()
@@ -40,7 +42,9 @@ class CacheRecord:
         self.accessed = now
 
     def is_expired(self) -> bool:
-        """calculate if expiration has passed or ttl is expired"""
+        """
+        calculate if expiration has passed or ttl is expired
+        """
         now = time.time()
         if self.expires <= now:
             return True
@@ -61,11 +65,12 @@ class Cache(Backend):
     """
     source: ClassVar[str] = 'Cache'
 
-    backend:    Backend
-    expiration: int      = 30
-    maxsize:    int      = 10000
-    ignore:     Set[str] = field(default_factory=lambda: IGNORE)
-    logger:     Logger   = field(default_factory=lambda: getLogger('pydns'))
+    backend:        Backend
+    expiration:     int        = 30
+    maxsize:        int        = 10000
+    ignore_rtypes:  Set[RType] = field(default_factory=lambda: {RType.SOA, })
+    ignore_sources: Set[str]   = field(default_factory=lambda: IGNORE)
+    logger:         Logger     = field(default_factory=lambda: getLogger('pydns'))
 
     mutex:       Lock                   = field(default_factory=Lock, init=False)
     cache:       Dict[str, CacheRecord] = field(default_factory=dict, init=False)
@@ -131,7 +136,10 @@ class Cache(Backend):
             return answers
         # complete standard lookup for answers
         answers = self.backend.get_answers(domain, rtype)
-        if answers.source in self.ignore:
+        if answers.source in self.ignore_sources:
+            return answers
+        if rtype not in self.ignore_rtypes \
+            and all(a.rtype in self.ignore_rtypes for a in answers.answers):
             return answers
         # save results to cache and return results
         self.set_cache(domain, rtype, answers)

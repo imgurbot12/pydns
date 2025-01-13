@@ -2,11 +2,12 @@
 In-Memory Backend Implementation
 """
 import ipaddress
-from typing import Dict, List, Set, Any, ClassVar
+from typing import Any, ClassVar, Dict, List, Set, Union
+from typing_extensions import TypedDict
 
 from . import Backend, Answers, Answer, RType
-from ...answer import get_rclass
-from ...content import PTR
+from ...answer import get_ctype
+from ...content import Content, PTR
 
 #** Variables **#
 __all__ = ['MemoryBackend']
@@ -14,21 +15,29 @@ __all__ = ['MemoryBackend']
 #: type definiton for in-memory record database
 RecordDB = Dict[bytes, Dict[RType, List[Answer]]]
 
-#: raw record entry configuration
-RecordEntries = Dict[str, List[Dict[str, Any]]]
+RecordEntries = List[Union[Content, 'RecordDict']]
+
+RawRecordEntries = Dict[str, List[Dict[str, Any]]]
 
 #** Classes **#
 
-class MemoryBackend(Backend):
-    """Simple In-Memory Backend for DNS Records"""
-    source: ClassVar[str]     = 'MemDB'
-    recursion_available: bool = False
- 
-    __slots__ = ('records', 'authorities')
+class RecordDict(TypedDict):
+    content: Content
+    ttl:     int
 
-    def __init__(self):
+class MemoryBackend(Backend):
+    """
+    Simple In-Memory Backend for DNS Records
+    """
+    source:              ClassVar[str]  = 'MemDB'
+    recursion_available: ClassVar[bool] = False #type: ignore
+
+    __slots__ = ('records', 'authorities', 'default_ttl')
+
+    def __init__(self, default_ttl: int = 60):
         self.records:     RecordDB   = {}
         self.authorities: Set[bytes] = set()
+        self.default_ttl: int        = default_ttl
 
     def add_answer(self, domain: bytes, answer: Answer):
         """
@@ -38,30 +47,49 @@ class MemoryBackend(Backend):
         self.records.setdefault(domain, {})
         self.records[domain].setdefault(rtype, [])
         self.records[domain][rtype].append(answer)
- 
-    def save_domain(self, domain: bytes, entries: RecordEntries):
+
+    def save_domain(self, domain: bytes, records: RecordEntries):
         """
         save additional records into in-memory db
+
+        :param domain:  dns domain to save records for
+        :param records: list of record objects with ttls
         """
         assert isinstance(domain, bytes), 'domain must be bytes'
         # convert dictionary records into valid dns answer objects
         self.authorities.add(domain)
-        for rname, records in entries.items():
+        for record in records:
+            # convert record into content and ttl
+            if isinstance(record, Content):
+                ttl     = self.default_ttl
+                content = record
+            else:
+                ttl     = record.get('ttl', self.default_ttl)
+                content = record['content']
+            # add standard record
+            answer  = Answer(domain, ttl, content)
+            self.add_answer(domain, answer)
+            # reverse ip records for PTR lookups
+            ipaddr = getattr(content, 'ip', None)
+            if ipaddr is not None:
+                ip   = ipaddress.ip_address(ipaddr)
+                name = ip.reverse_pointer.encode()
+                answer = Answer(name, ttl, PTR(domain))
+                self.add_answer(name, answer)
+
+    def save_domain_dict(self, domain: bytes, entries: RawRecordEntries):
+        """
+        save additional records into in-memory db using raw dictionary object
+
+        :param domain:  dns domain to save records for
+        :param records: list of record objects with ttls
+        """
+        records = []
+        for rname, r_entries in entries.items():
             rtype  = RType[rname]
-            rclass = get_rclass(rtype)
-            for record in records:
-                # add standard record
-                ttl     = record.pop('ttl', 60)
-                content = rclass(**record)
-                answer  = Answer(domain, ttl, content)
-                self.add_answer(domain, answer)
-                # reverse ip records for PTR lookups
-                ipaddr = record.get('ip', None)
-                if ipaddr is not None:
-                    ip   = ipaddress.ip_address(ipaddr)
-                    name = ip.reverse_pointer.encode()
-                    answer = Answer(name, ttl, PTR(domain))
-                    self.add_answer(name, answer)
+            ctype  = get_ctype(rtype)
+            records.extend([ctype(**entry) for entry in r_entries])
+        self.save_domain(domain, records)
 
     def is_authority(self, domain: bytes) -> bool:
         """

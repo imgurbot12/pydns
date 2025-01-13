@@ -29,6 +29,12 @@ class BaseClient(Protocol):
 
     @abstractmethod
     def request(self, msg: Message) -> Message:
+        """
+        send request and proces recieved response
+
+        :param msg: dns request  message
+        :return:    dns response message
+        """
         raise NotImplementedError
 
     def query(self, query: Question) -> Message:
@@ -44,5 +50,5 @@ class BaseClient(Protocol):
         return self.request(message)
 
 #** Imports **#
-from .standard import UdpClient, TcpClient
 from .https import HttpsClient
+from .standard import UdpClient, TcpClient

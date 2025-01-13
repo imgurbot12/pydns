@@ -1,64 +1,31 @@
 """
-DNS Message Object
+DNS Message Object Definition
 """
-from typing import List
-from typing import Type
+from typing import List, Optional
 from typing_extensions import Self
 
-from pystructs import *
 from pyderive import dataclass, field
+from pystructs import U16, Context, Struct
 
-from .enum import OpCode, RType, RCode
-from .flags import Flags
-from .answer import BaseAnswer, Answer, PreRequisite, Update
-from .question import Question, Zone
+from .answer import Answer, BaseAnswer, PreRequisite, Update, peek_rtype
 from .edns import EdnsAnswer
-from .exceptions import make_error
+from .enum import OpCode, RCode, RType
+from .exceptions import raise_error
+from .flags import Flags
+from .question import Question, Zone
 
 #** Variables **#
 __all__ = ['Message']
 
-#** Functions **#
-
-def decode_list(cls, num: int, ctx: Context, raw: bytes):
-    """
-    deserialize a numbered list of items of the specified type
-    """
-    objects = []
-    for _ in range(0, num):
-        new = cls.decode(ctx, raw)
-        objects.append(new)
-    return objects
-
-def decode_answers(cls: Type[Answer], num: int, ctx: Context, raw: bytes):
-    """
-    deserialize a numbered list of variable answer object types
-    """
-    objects = []
-    for _ in range(0, num):
-        # peek the header domain/rtype to determine Answer class
-        idx    = ctx.index 
-        peek   = PeekHeader.decode(ctx, raw)
-        newcls = EdnsAnswer if peek.rtype == RType.OPT else cls
-        ctx.index = idx 
-        # decode answer class accordingly
-        new = newcls.decode(ctx, raw)
-        objects.append(new)
-    return objects
-
 #** Classes **#
 
-class PeekHeader(Struct):
-    name:  Domain
-    rtype: Wrap[U16, RType]
-
-class Header(Struct):
-    id:             U16
-    flags:          U16 
-    num_questions:  U16
-    num_answers:    U16
-    num_authority:  U16
-    num_additional: U16
+class PacketHeader(Struct):
+    id:         U16
+    flags:      U16
+    questions:  U16
+    answers:    U16
+    authority:  U16
+    additional: U16
 
 @dataclass(slots=True)
 class Message:
@@ -68,63 +35,70 @@ class Message:
     answers:    List[Answer]     = field(default_factory=list)
     authority:  List[Answer]     = field(default_factory=list)
     additional: List[BaseAnswer] = field(default_factory=list)
- 
+
     def raise_on_error(self):
-        """raise exception if message contains an error"""
+        """
+        raise exception if message contains an error
+        """
         if self.flags.rcode != RCode.NoError:
             domains = list({q.name for q in self.questions})
             domains = domains[0] if len(domains) == 1 else domains
-            make_error(self.flags.rcode, domains or None)
+            raise_error(self.flags.rcode, domains or None)
 
-    def encode(self) -> bytes:
+    def pack(self, ctx: Optional[Context] = None) -> bytes:
         """
-        encode the message object into serialized bytes
+        pack message object into serialized bytes
 
-        :return: serialized message bytes
+        :param ctx: serialization context object
+        :return:    serialized bytes
         """
-        ctx = Context()
-        raw = bytearray()
-        raw += Header(
-            id=self.id, 
-            flags=int(self.flags), 
-            num_questions=len(self.questions), 
-            num_answers=len(self.answers), 
-            num_authority=len(self.authority), 
-            num_additional=len(self.additional)
-        ).encode(ctx)
-        raw += b''.join(q.encode(ctx) for q in self.questions)
-        raw += b''.join(a.encode(ctx) for a in self.answers)
-        raw += b''.join(a.encode(ctx) for a in self.authority)
-        raw += b''.join(a.encode(ctx) for a in self.additional)
+        ctx  = ctx or Context()
+        raw  = bytearray()
+        raw += PacketHeader(
+            id=self.id,
+            flags=int(self.flags),
+            questions=len(self.questions),
+            answers=len(self.answers),
+            authority=len(self.authority),
+            additional=len(self.additional),
+        ).pack(ctx)
+        raw += b''.join(q.pack(ctx) for q in self.questions)
+        raw += b''.join(a.pack(ctx) for a in self.answers)
+        raw += b''.join(a.pack(ctx) for a in self.authority)
+        raw += b''.join(a.pack(ctx) for a in self.additional)
         return bytes(raw)
 
     @classmethod
-    def decode(cls, raw: bytes) -> Self:
+    def unpack(cls, raw: bytes, ctx: Optional[Context] = None) -> Self:
         """
-        decode the given raw bytes as a DNS message
+        unpack serialized bytes into deserialized message object
 
-        :param raw: raw bytes to decode as a DNS message
-        :return:    dns message object
+        :param raw: raw byte buffer
+        :param ctx: deserialization context object
+        :return:    unpacked message object
         """
-        # parse header for message information
-        ctx = Context()
-        raw = bytes(raw)
-        header = Header.decode(ctx, raw)
-        flags  = Flags.fromint(header.flags)
+        ctx   = ctx or Context()
+        head  = PacketHeader.unpack(raw, ctx)
+        flags = Flags.fromint(head.flags)
         # determine classes to parse content
         qclass, anclass, auclass = (Question, Answer, Answer) \
-                if flags.op != OpCode.Update else \
-                (Zone, PreRequisite, Update)
+            if flags.op != OpCode.Update else \
+            (Zone, PreRequisite, Update)
         # parse body content w/ determined classes
-        questions  = decode_list(qclass, header.num_questions, ctx, raw)
-        answers    = decode_answers(anclass, header.num_answers, ctx, raw)
-        authority  = decode_answers(auclass, header.num_authority, ctx, raw)
-        additional = decode_answers(Answer, header.num_additional, ctx, raw)
+        questions  = [qclass.unpack(raw, ctx) for _ in range(head.questions)]
+        answers    = [anclass.unpack(raw, ctx) for _ in range(head.answers)]
+        authority  = [auclass.unpack(raw, ctx) for _ in range(head.authority)]
+        additional = []
+        for _ in range(head.additional):
+            rtype  = peek_rtype(raw, ctx)
+            newcls = EdnsAnswer if rtype == RType.OPT else cls
+            answer = newcls.unpack(raw, ctx)
+            additional.append(answer)
         return cls(
-            id=header.id, 
-            flags=flags, 
-            questions=questions, 
-            answers=answers, 
+            id=head.id,
+            flags=flags,
+            questions=questions,
+            answers=answers,
             authority=authority,
-            additional=additional,
+            additional=additional
         )

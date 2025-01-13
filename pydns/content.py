@@ -1,15 +1,19 @@
 """
-DNS Standard Content Sequences
+DNS Answer RR Content Definitions
 """
-from typing import Optional, Type, Tuple, ClassVar
-from typing_extensions import Annotated, Self, dataclass_transform
+from functools import lru_cache
+from typing import ClassVar, Optional, Type
+from typing_extensions import Annotated, Self
 
-from pystructs import *
+from pystructs import U16, U32, Context, Domain, HintedBytes, IPv4, IPv6, Struct
 
-from .enum import RType
+from . enum import RType
 
 #** Variables **#
 __all__ = [
+    'Content',
+    'Unknown',
+
     'NULL',
     'ANY',
     'CNAME',
@@ -23,48 +27,36 @@ __all__ = [
     'SRV',
 ]
 
-#** Functions **#
-
-@dataclass_transform()
-def content(cls: Optional[type] = None, rtype: Optional[RType] = None):
-    """generate content class w/ given rtype"""
-    def wrapper(cls):
-        cls.rtype = rtype or RType[cls.__name__]
-        return cls
-    return wrapper if cls is None else wrapper(cls)
-
 #** Classes **#
 
 class Content(Struct):
     rtype: ClassVar[RType]
 
-@content
 class NULL(Content):
-    pass
+    rtype: ClassVar[RType] = RType.NULL
 
-@content
 class ANY(Content):
-    pass
+    rtype: ClassVar[RType] = RType.ANY
 
-@content
 class CNAME(Content):
-    name: Domain
+    rtype: ClassVar[RType] = RType.CNAME
+    name:  Domain
 
-@content
 class MX(Content):
+    rtype:      ClassVar[RType] = RType.MX
     preference: U16
     exchange:   Domain
 
-@content
 class NS(Content):
+    rtype:      ClassVar[RType] = RType.NS
     nameserver: Domain
 
-@content
 class PTR(Content):
+    rtype:   ClassVar[RType] = RType.PTR
     ptrname: Domain
 
-@content
 class SOA(Content):
+    rtype:     ClassVar[RType] = RType.SOA
     mname:     Domain
     rname:     Domain
     serialver: U32
@@ -73,52 +65,57 @@ class SOA(Content):
     expire:    U32
     minimum:   U32
 
-@content
 class TXT(Content):
-    text: Annotated[bytes, SizedBytes[U32]]
+    rtype: ClassVar[RType] = RType.TXT
+    text:  Annotated[bytes, HintedBytes(U32)]
 
-@content
 class A(Content):
-    ip: IPv4
+    rtype: ClassVar[RType] = RType.A
+    ip:    IPv4
 
-@content
 class AAAA(Content):
-    ip: IPv6
+    rtype: ClassVar[RType] = RType.AAAA
+    ip:    IPv6
 
-@content
 class SRV(Content):
+    rtype:    ClassVar[RType] = RType.SRV
     priority: U16
     weight:   U16
     port:     U16
     target:   Domain
 
-class Literal(Content, slots=False):
-    """Handler for Unsupported Record Types"""
+class Unknown:
+    """
+    Mock Struct/Content Object for Unknown/Unsupported DNS Content Types
+    """
+    __slots__ = ('data', )
+
     rtype: ClassVar[RType]
     size:  ClassVar[int]
-
-    def __init_subclass__(cls, **_):
-        """prevent compiling subclasses of self"""
-        pass
-
-    def __class_getitem__(cls, settings: Tuple[RType, int]) -> Type[Self]:
-        rtype, size = settings
-        return type(f'Unknown[{rtype.name}]', (cls, ), {
-            'rtype': rtype, 
-            'size': size
-        })
 
     def __init__(self, data: bytes):
         self.data = data
 
     def __repr__(self) -> str:
-        return f'{self.__class__.__name__}({self.data.hex()})'
+        return f'Unknown(rtype={self.rtype!r}, data=0x{self.data.hex()})'
 
-    def encode(self, ctx: Context) -> bytes:
-        ctx.index += self.size
-        return self.data
+    def pack(self, ctx: Optional[Context] = None) -> bytes:
+        ctx = ctx or Context()
+        return ctx.track_bytes(self.data)
 
     @classmethod
-    def decode(cls, ctx: Context, raw: bytes) -> Self:
-        data = ctx.slice(raw, cls.size)
-        return cls(data)
+    def unpack(cls, raw: bytes, ctx: Optional[Context] = None) -> Self:
+        ctx = ctx or Context()
+        return cls(ctx.slice(raw, cls.size))
+
+    @classmethod
+    @lru_cache(maxsize=None)
+    def new(cls, rtype: RType, size: int) -> Type:
+        return type('Unknown', (cls, ), {'rtype': rtype, 'size': size})
+
+#** Content **#
+
+#: cheeky way of collecting all content types into map based on their RType
+CONTENT_MAP = {v.rtype:v
+    for v in globals().values()
+    if isinstance(v, type) and issubclass(v, Content) and v is not Content}
