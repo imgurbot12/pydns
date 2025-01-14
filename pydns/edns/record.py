@@ -29,6 +29,9 @@ class EdnsHeader(Struct):
 
 @dataclass(slots=True)
 class EdnsAnswer(BaseAnswer):
+    """
+    EDNS Answer Object Definition
+    """
     name:     bytes  = ROOT
     version:  int    = 0
     content:  bytes  = b''

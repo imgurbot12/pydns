@@ -34,6 +34,9 @@ class Flag(IntFlag):
 
 @dataclass(slots=True)
 class Flags:
+    """
+    DNS BitFlags Object Definition
+    """
     qr:                   QR
     op:                   OpCode
     authorative:          bool  = False

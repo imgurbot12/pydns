@@ -1,3 +1,6 @@
+"""
+Simple and Extensible DNS Server Implementation
+"""
 from enum import IntEnum
 from logging import Logger, getLogger
 from typing import Optional
@@ -15,17 +18,6 @@ from ..exceptions import DnsError, NotImplemented
 #** Variables **#
 __all__ = ['Server']
 
-#DONE: error on session generation failure on startup of pyserve service
-#DONE: ignore server-shutdown failure on udp-sockets (move override to only tcp impl)
-#DONE: implement recursive client lookup w/ backend extension
-#DONE: simplify record assignment for in-memory backend
-#DONE: update server to support inverse-query lookups (PTR)
-#DONE: block any messages other than query/inverse-query
-#DONE: unify answer types under similar protocol?
-#DONE: implement error packet response on server-processing error
-#DONE: implement propper logging for dns server impl
-#TODO: allow for loading from config for in-memory backend
-
 #** Classes **#
 
 class Mode(IntEnum):
@@ -37,7 +29,9 @@ class Mode(IntEnum):
 
 @dataclass
 class Server(BaseSession):
-    """Extendable Implementation of DNS Server Session Manager"""
+    """
+    Extendable Implementation of DNS Server Session Manager for PyServe
+    """
     backend: Backend
     logger:  Logger = field(default_factory=lambda: getLogger('pydns'))
 

@@ -30,32 +30,56 @@ __all__ = [
 #** Classes **#
 
 class Content(Struct):
+    """
+    Abstract Baseclass for DNS RR Record Content
+    """
     rtype: ClassVar[RType]
 
 class NULL(Content):
+    """
+    NULL RR - Signifies that query does not exist
+    """
     rtype: ClassVar[RType] = RType.NULL
 
 class ANY(Content):
+    """
+    ANY RR - Deprecated special record type
+    """
     rtype: ClassVar[RType] = RType.ANY
 
 class CNAME(Content):
+    """
+    CNAME RR - Cannoical Name (domain alias)
+    """
     rtype: ClassVar[RType] = RType.CNAME
     name:  Domain
 
 class MX(Content):
+    """
+    MX RR - Mail Server
+    """
     rtype:      ClassVar[RType] = RType.MX
     preference: U16
     exchange:   Domain
 
 class NS(Content):
+    """
+    NS RR - Name Server (authoritative dns zone for domain)
+    """
     rtype:      ClassVar[RType] = RType.NS
     nameserver: Domain
 
 class PTR(Content):
+    """
+    PTR RR - Pointer (reverse ip to domain lookup)
+    """
     rtype:   ClassVar[RType] = RType.PTR
     ptrname: Domain
 
 class SOA(Content):
+    """
+    SOA RR - Start of Authority (authoritative info for domain)
+    """
     rtype:     ClassVar[RType] = RType.SOA
     mname:     Domain
     rname:     Domain
@@ -66,18 +90,30 @@ class SOA(Content):
     minimum:   U32
 
 class TXT(Content):
+    """
+    TXT RR - Text Record (Arbitrary Text Blob over DNS)
+    """
     rtype: ClassVar[RType] = RType.TXT
     text:  Annotated[bytes, HintedBytes(U32)]
 
 class A(Content):
+    """
+    A RR - Address Record (ipv4 address)
+    """
     rtype: ClassVar[RType] = RType.A
     ip:    IPv4
 
 class AAAA(Content):
+    """
+    AAAA RR - Ipv6 Address Record (ipv6 address)
+    """
     rtype: ClassVar[RType] = RType.AAAA
     ip:    IPv6
 
 class SRV(Content):
+    """
+    SRV RR - Service Record (generalized service rather than NS/MX)
+    """
     rtype:    ClassVar[RType] = RType.SRV
     priority: U16
     weight:   U16

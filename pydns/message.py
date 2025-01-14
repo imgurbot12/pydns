@@ -29,6 +29,9 @@ class PacketHeader(Struct):
 
 @dataclass(slots=True)
 class Message:
+    """
+    DNS Message Object Definition (Request & Response Packet)
+    """
     id:         int
     flags:      Flags
     questions:  List[Question]   = field(default_factory=list)

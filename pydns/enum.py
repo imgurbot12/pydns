@@ -16,10 +16,16 @@ __all__ = [
 #** Classes **#
 
 class QR(IntEnum):
+    """
+    Message Operation-Code (QUESTION/RESPONSE)
+    """
     Question = 0
     Response = 1
 
 class OpCode(IntEnum):
+    """
+    Message Operation Code - Query, Inverse-Query, etc
+    """
     Query        = 0
     InverseQuery = 1
     Status       = 2
@@ -27,6 +33,9 @@ class OpCode(IntEnum):
     Update       = 5
 
 class RCode(IntEnum):
+    """
+    Message Response/Error Code
+    """
     NoError           = 0
     FormatError       = 1
     ServerFailure     = 2
@@ -48,6 +57,9 @@ class RCode(IntEnum):
     BadAlgorithm      = 21
 
 class RType(IntEnum):
+    """
+    Question/Action Resource Record (RR) Type
+    """
     A          = 1
     NS         = 2
     MD         = 3
@@ -136,6 +148,9 @@ class RType(IntEnum):
     DLV = 32769
 
 class RClass(IntEnum):
+    """
+    RR Classification (Almost Always IN - Internet)
+    """
     IN   = 1
     CS   = 2
     CH   = 3
@@ -144,4 +159,7 @@ class RClass(IntEnum):
     ANY  = 255
 
 class EDNSOption(IntEnum):
+    """
+    EDNS RR Options
+    """
     Cookie = 10

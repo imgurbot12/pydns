@@ -12,6 +12,9 @@ __all__ = ['Question', 'Zone']
 #** Classes **#
 
 class Question(Struct):
+    """
+    DNS Question Object Definition
+    """
     name:   Domain
     qtype:  Annotated[RType, U16]
     qclass: Annotated[RClass, U16] = RClass.IN

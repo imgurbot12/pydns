@@ -15,11 +15,15 @@ __all__ = ['HttpsClient']
 
 @dataclass(slots=True)
 class HttpsClient(BaseClient):
+    """
+    Simple DNS over HTTPS Client Implementation
+    """
     url:     str           = 'https://cloudflare-dns.com/dns-query'
     timeout: Optional[int] = None
 
     def __post_init__(self):
         self.headers = {
+            'User-Agent':   'PyDNS/0.0.1',
             'Accept':       'application/dns-message',
             'Content-Type': 'application/dns-message'
         }

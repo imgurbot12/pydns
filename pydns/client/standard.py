@@ -22,6 +22,9 @@ class SocketPool(Pool[socket.socket]):
 
 @dataclass(slots=True)
 class Client(BaseClient, ABC):
+    """
+    Baseclass Socket-Based DNS Client Implementation
+    """
     addresses:  List[RawAddr]
     block_size: int           = 65535
     pool_size:  Optional[int] = None
@@ -68,6 +71,9 @@ class Client(BaseClient, ABC):
         self.pool.drain()
 
 class UdpClient(Client):
+    """
+    Simple UDP Socket DNS Client
+    """
 
     def newsock(self) -> socket.socket:
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -88,6 +94,9 @@ class UdpClient(Client):
             return Message.unpack(data)
 
 class TcpClient(Client):
+    """
+    Simple TCP Socket DNS Client
+    """
 
     def newsock(self) -> socket.socket:
         addr = self.pickaddr()

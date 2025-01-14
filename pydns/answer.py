@@ -43,7 +43,7 @@ def peek_rtype(raw: bytes, ctx: Context) -> RType:
 
 #NOTE: The nature of dns domain name compression prevents
 # the simple implementation of including the content-size
-# and content-body within `AnswerStruct` with something like
+# and content-body within `AnswerHeader` with something like
 # a `HintedBytes(U16)` instance which would require recursively
 # packing/unpacking the content assigned to a bytearray.
 
@@ -56,7 +56,9 @@ class AnswerHeader(PeekHeader):
     ttl:     U32
 
 class BaseAnswer(Protocol):
-    """Baseclass for defining `Answer` objects"""
+    """
+    Baseclass for defining `Answer` objects
+    """
     name: bytes
 
     @property
