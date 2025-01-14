@@ -88,7 +88,10 @@ class MemoryBackend(Backend):
         for rname, r_entries in entries.items():
             rtype  = RType[rname]
             ctype  = get_ctype(rtype)
-            records.extend([ctype(**entry) for entry in r_entries])
+            for entry in r_entries:
+                ttl     = entry.pop('ttl', self.default_ttl)
+                content = ctype(**entry)
+                records.append({'ttl': ttl, 'content': content})
         self.save_domain(domain, records)
 
     def is_authority(self, domain: bytes) -> bool:
