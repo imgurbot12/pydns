@@ -39,6 +39,7 @@ class EdnsAnswer(BaseAnswer):
         return RType.OPT
 
     def pack(self, ctx: Optional[Context] = None) -> bytes:
+        ctx = ctx or Context()
         return EdnsHeader(
             name=self.name,
             rtype=self.rtype,
@@ -47,7 +48,7 @@ class EdnsAnswer(BaseAnswer):
             version=self.version,
             z=0,
             data_length=len(self.content)
-        ).pack(ctx)
+        ).pack(ctx) + ctx.track_bytes(self.content)
 
     @classmethod
     def unpack(cls, raw: bytes, ctx: Optional[Context] = None) -> Self:

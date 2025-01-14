@@ -54,7 +54,7 @@ class Flags:
         flags |= Flag.Authenticated if self.answer_authenticated else 0
         flags |= Flag.CheckingDisabled if self.checking_disabled else 0
         flags |= self.rcode
-        return flags
+        return int(flags)
 
     @classmethod
     def fromint(cls, i: int) -> Self:
