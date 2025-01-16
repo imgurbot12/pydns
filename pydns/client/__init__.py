@@ -21,7 +21,7 @@ def new_message_id() -> int:
 
     :return: new valid message-id integer
     """
-    return randint(1, 2 ^ 16)
+    return randint(1, 2 ** 16)
 
 #** Classes **#
 

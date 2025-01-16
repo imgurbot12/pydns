@@ -1,3 +1,6 @@
+"""
+DNS Server Data Backend Implementations
+"""
 from abc import abstractmethod
 from typing import NamedTuple, Protocol, List, ClassVar
 
@@ -20,7 +23,9 @@ __all__ = [
 #** Classes **#
 
 class Answers(NamedTuple):
-    """custom return type when retrieving backend answers"""
+    """
+    Backend DNS Answers Return Type
+    """
     answers: List[Answer]
     source:  str
 
