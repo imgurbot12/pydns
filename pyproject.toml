@@ -39,4 +39,4 @@ classifiers = [
 Repository = "https://github.com/imgurbot12/pydns"
 
 [tool.setuptools.package-data]
-"pystructs3" = ["py.typed"]
+"pydns3" = ["py.typed"]
