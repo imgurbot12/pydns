@@ -36,8 +36,7 @@ class Forwarder(Backend):
         if not answers:
             source  = self.source
             message = self.client.query(Question(domain, rtype))
-            answers.extend(message.answers)
-            answers.extend(message.authority)
+            answers = [*message.answers, *message.authority]
             answers.extend([
                 a for a in message.additional if isinstance(a, Answer)])
         return Answers(answers, source)

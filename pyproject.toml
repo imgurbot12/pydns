@@ -7,7 +7,7 @@ name = "pydns3"
 version = "0.0.10"
 requires-python = ">=3.8"
 dependencies = [
-    'pypool3>=0.0.2',
+    'pypool3>=0.0.3',
     'pyderive3>=0.0.7',
     'pystructs3>=0.0.8',
     'pyserve3>=0.0.7',

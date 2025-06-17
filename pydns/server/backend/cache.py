@@ -38,6 +38,7 @@ class CacheRecord:
         ttl = min(a.ttl for a in self.answers)
         ttl = min(ttl, expiration) if expiration else ttl
         now = time.time()
+        self.answers  = self.answers.copy()
         self.expires  = now + ttl
         self.accessed = now
 
@@ -110,7 +111,7 @@ class Cache(Backend):
                 self.logger.debug(f'{key} expired')
                 del self.cache[key]
                 return
-            return Answers(record.answers, self.source)
+            return Answers(record.answers.copy(), self.source)
 
     def set_cache(self, domain: bytes, rtype: RType, answers: Answers):
         """

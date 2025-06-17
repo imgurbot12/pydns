@@ -84,7 +84,7 @@ class UdpClient(Client):
         sock.close()
 
     def request(self, msg: Message) -> Message:
-        with self.pool.reserve() as sock:
+        with self.pool.reserve(discard_on=(socket.timeout, )) as sock:
             # send request
             addr = self.pickaddr()
             data = msg.pack()
@@ -110,7 +110,7 @@ class TcpClient(Client):
         sock.close()
 
     def request(self, msg: Message) -> Message:
-        with self.pool.reserve() as sock:
+        with self.pool.reserve(discard_on=(socket.timeout, )) as sock:
             # send request
             data = msg.pack()
             data = len(data).to_bytes(2, 'big') + data
