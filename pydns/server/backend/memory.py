@@ -2,6 +2,7 @@
 In-Memory Backend Implementation
 """
 import ipaddress
+from fnmatch import fnmatch
 from typing import Any, ClassVar, Dict, List, Set, Union
 from typing_extensions import TypedDict
 
@@ -32,12 +33,13 @@ class MemoryBackend(Backend):
     source:              ClassVar[str]  = 'MemDB'
     recursion_available: ClassVar[bool] = False #type: ignore
 
-    __slots__ = ('records', 'authorities', 'default_ttl')
+    __slots__ = ('records', 'authorities', 'default_ttl', 'allow_wildcards')
 
     def __init__(self, default_ttl: int = 60):
-        self.records:     RecordDB   = {}
-        self.authorities: Set[bytes] = set()
-        self.default_ttl: int        = default_ttl
+        self.records:         RecordDB   = {}
+        self.authorities:     Set[bytes] = set()
+        self.default_ttl:     int        = default_ttl
+        self.allow_wildcards: bool       = False
 
     def add_answer(self, domain: bytes, answer: Answer):
         """
@@ -47,6 +49,7 @@ class MemoryBackend(Backend):
         self.records.setdefault(domain, {})
         self.records[domain].setdefault(rtype, [])
         self.records[domain][rtype].append(answer)
+        self.allow_wildcards = self.allow_wildcards or b'*' in domain
 
     def save_domain(self, domain: bytes, records: RecordEntries):
         """
@@ -67,7 +70,7 @@ class MemoryBackend(Backend):
                 ttl     = record.get('ttl', self.default_ttl)
                 content = record['content']
             # add standard record
-            answer  = Answer(domain, ttl, content)
+            answer = Answer(domain, ttl, content)
             self.add_answer(domain, answer)
             # reverse ip records for PTR lookups
             ipaddr = getattr(content, 'ip', None)
@@ -108,4 +111,11 @@ class MemoryBackend(Backend):
         if domain in self.records:
             records = self.records[domain]
             answers = records.get(rtype, [])
+        elif self.allow_wildcards:
+            for key, records in self.records.items():
+                if fnmatch(domain, key):
+                    answers = records.get(rtype, []).copy()
+                    for answer in answers:
+                        answer.name = answer.name.replace(key, domain)
+                    break;
         return Answers(answers, self.source)
