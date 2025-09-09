@@ -143,5 +143,6 @@ class Cache(Backend):
             and all(a.rtype in self.ignore_rtypes for a in answers.answers):
             return answers
         # save results to cache and return results
-        self.set_cache(domain, rtype, answers)
+        if answers:
+            self.set_cache(domain, rtype, answers)
         return answers
