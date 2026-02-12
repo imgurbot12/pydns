@@ -112,10 +112,12 @@ class MemoryBackend(Backend):
             records = self.records[domain]
             answers = records.get(rtype, [])
         elif self.allow_wildcards:
-            for key, records in self.records.items():
+            wildcards = [(k,r) for k,r in self.records.items() if b'*' in k]
+            wildcards.sort(key=lambda item: len(item[0]), reverse=True)
+            for key, records in wildcards:
                 if fnmatch(domain, key):
                     answers = records.get(rtype, []).copy()
                     for answer in answers:
-                        answer.name = answer.name.replace(key, domain)
+                        answer.name = domain
                     break;
         return Answers(answers, self.source)

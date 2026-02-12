@@ -124,7 +124,7 @@ class Server(BaseSession):
             msg.flags.rcode = e.rcode
         except Exception as e:
             msg.flags.rcode = RCode.ServerFailure
-            raise e
+            self.logger.exception(f'{self.addr_str} | captured exception')
         finally:
             # send response
             data = msg.pack()
