@@ -1,20 +1,27 @@
 """
 Custom Rule Engine for Blocking Unwanted Domains
 """
+from enum import Enum
 from abc import abstractmethod
+from ipaddress import IPv4Address, IPv6Address
 from typing import ClassVar, List, Optional, Protocol, Set
 
 from pyderive import dataclass, field
+from pydns import Answer, A, AAAA, DnsError, RCode
 
 from .. import RType, Answers, Backend
 
 #** Variables **#
 __all__ = [
+    'BlockMode',
     'RuleEngine',
     'RuleBackend',
 
     'DbmRuleEngine',
 ]
+
+NULL_IPV4 = A(IPv4Address('0.0.0.0'))
+NULL_IPV6 = AAAA(IPv6Address('::'))
 
 #** Functions **#
 
@@ -33,6 +40,29 @@ def split_domains(domain: bytes) -> List[bytes]:
     return domains
 
 #** Classes **#
+
+class BlockMode(str, Enum):
+    NODATA = 'nodata'
+    """return an empty success response with no records"""
+
+    NULL = 'null'
+    """return localhost address (0.0.0.0 or ::) to prevent routing"""
+
+    NXDOMAIN = 'nxdomain'
+    """return NXDOMAIN error indicating domain does not exist"""
+
+    def answers(self, domain: bytes, rtype: RType) -> List[Answer]:
+        """
+        generate answers based on block-mode
+        """
+        if self == self.NULL:
+            if rtype == RType.A:
+                return [Answer(domain, 60, NULL_IPV4)]
+            if rtype == RType.AAAA:
+                return [Answer(domain, 60, NULL_IPV6)]
+        if self == self.NXDOMAIN:
+            raise DnsError('blocked', RCode.NonExistantDomain)
+        return []
 
 class RuleEngine(Protocol):
     """
@@ -67,14 +97,14 @@ class RuleBackend(Backend):
     """
     source: ClassVar[str] = 'Blacklist'
 
-    backend:   Backend
-    blacklist: Set[bytes]           = field(default_factory=set)
-    whitelist: Set[bytes]           = field(default_factory=set)
-    engine:    Optional[RuleEngine] = None
+    backend:    Backend
+    blacklist:  Set[bytes]           = field(default_factory=set)
+    whitelist:  Set[bytes]           = field(default_factory=set)
+    engine:     Optional[RuleEngine] = None
+    block_mode: BlockMode            = BlockMode.NODATA
 
     def __post_init__(self):
         self.recursion_available = self.backend.recursion_available
-        self.empty = Answers([], self.source)
         self.blacklist -= self.whitelist
 
     def is_authority(self, domain: bytes) -> bool:
@@ -129,7 +159,8 @@ class RuleBackend(Backend):
         :return:       empty-answers (if blocked), else standard search results
         """
         if self.is_blocked(domain):
-            return self.empty
+            answers = self.block_mode.answers(domain, rtype)
+            return Answers(answers, self.source)
         return self.backend.get_answers(domain, rtype)
 
 #** Imports **#

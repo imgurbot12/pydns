@@ -7,8 +7,6 @@ import dbm
 import json
 from typing import List, Optional, Set, Tuple
 
-from pydns.server.backend.ruleset.wildcard import WildcardMatch
-
 from . import RuleEngine
 from .parser import RuleDef, RuleDefs, Domain, Regex, Status, Wildcard, parse_rules
 from .wildcard import WildcardMatch
@@ -89,12 +87,19 @@ class DbmRuleEngine(RuleEngine):
         """
         return set(self.dbm.get(self.source_key, b'').decode().split(','))
 
-    def ingest(self, name: str, rules: RuleDefs):
+    def sync(self):
         """
-        ingest incoming source of rule definitions and update database
+        sync database and settings after ingestion
+        """
+        if hasattr(self.dbm, 'sync'):
+            self.dbm.sync() #type: ignore
+        if hasattr(self.dbm, 'reorganize'):
+            self.dbm.reorganize() #type: ignore
+        self._reload_patterns()
 
-        :param name:  name of source
-        :param rules: rules to ingest
+    def _ingest(self, name: str, rules: RuleDefs):
+        """
+        ingest incoming source of rule definitions without syncing
         """
         # separate rules into categories
         domains   = {}
@@ -125,20 +130,25 @@ class DbmRuleEngine(RuleEngine):
         self.dbm[wildcard_key] = encode_defs(wildcards)
         for domain, rule in domains.items():
             self.dbm[domain] = rule
-        # sync and reorganize data (if available)
-        if hasattr(self.dbm, 'sync'):
-            self.dbm.sync() #type: ignore
-        if hasattr(self.dbm, 'reorganize'):
-            self.dbm.reorganize() #type: ignore
-        # reload regex/wildcard expressions
-        self._reload_patterns()
 
-    def ingest_file(self, fpath: str, name: Optional[str] = None):
+    def ingest(self, name: str, rules: RuleDefs):
+        """
+        ingest incoming source of rule definitions and update database
+
+        :param name:  name of source
+        :param rules: rules to ingest
+        """
+        self._ingest(name, rules)
+        self.sync()
+
+    def ingest_file(self,
+        fpath: str, name: Optional[str] = None, sync: bool = True):
         """
         parse and ingest ruleset from the specified filepath
 
         :param fpath: filepath containing rules to add to rule engine
         :param name:  custom name of source for items in db
+        :param sync:  sync database after ingestion
         """
         # only ingest the file if it hasnt been seen before or mtime changed
         name = name or os.path.basename(fpath)
@@ -149,8 +159,10 @@ class DbmRuleEngine(RuleEngine):
         # process file and ingest domains and then cache last mtime
         with open(fpath, 'r') as f:
             rules = parse_rules(f)
-            self.ingest(name, rules)
+            self._ingest(name, rules)
             self.dbm[fpath] = str(time).encode()
+            if sync:
+                self.sync()
 
     def match_domain(self, domain: bytes) -> Optional[bool]:
         """

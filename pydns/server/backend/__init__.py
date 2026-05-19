@@ -15,6 +15,7 @@ __all__ = [
     'Forwarder',
     'MemoryBackend',
 
+    'BlockMode',
     'RuleEngine',
     'RuleBackend',
     'DbmRuleEngine',
@@ -48,4 +49,4 @@ class Backend(Protocol):
 from .cache import Cache
 from .forwarder import Forwarder
 from .memory import MemoryBackend
-from .ruleset import RuleEngine, RuleBackend, DbmRuleEngine
+from .ruleset import BlockMode, RuleEngine, RuleBackend, DbmRuleEngine
