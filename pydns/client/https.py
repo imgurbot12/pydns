@@ -41,5 +41,5 @@ class HttpsClient(BaseClient):
         content = res.read()
         if res.status != 200:
             raise RuntimeError(f'Invalid Response: {res.status} {content}')
-        return Message.unpack(content)
+        return Message.unpack(content, source=self.url)
 

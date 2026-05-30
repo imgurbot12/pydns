@@ -46,26 +46,25 @@ class Server(BaseSession):
             # check if server is authority on domain and retrieve basic answers
             is_authority = self.backend.is_authority(q.name)
             msg.flags.authorative = msg.flags.authorative or is_authority
-            answers, source, rcode = self.backend.get_answers(q.name, q.qtype)
+            answers = self.backend.get_answers(q.name, q.qtype)
             # include SOA if authorative and not already included
             if is_authority and q.qtype != RType.SOA and \
                 not any(a.name == q.name for a in msg.authority):
-                more, _, _ = self.backend.get_answers(q.name, RType.SOA)
-                answers    = answers.copy()
-                answers   += more
+                more = self.backend.get_answers(q.name, RType.SOA)
+                answers.answers = [*answers.answers, *more.answers]
             # report and assign answers
-            code = f' code={rcode.name}' if rcode else ''
+            code = f' code={answers.rcode.name}' if answers.rcode else ''
             self.logger.info(
                 f'{self.addr_str} | {q.name} {q.qtype.name} '
-                f'answers={len(answers)} src={source}{code}')
-            for answer in answers:
+                f'answers={len(answers.answers)} src={answers.source}{code}')
+            for answer in answers.answers:
                 if answer.rtype == RType.SOA:
                     msg.authority.append(answer)
                 else:
                     msg.answers.append(answer)
             # break loop if rcode is not standard
-            if rcode is not None:
-                msg.flags.rcode = rcode
+            if answers.rcode is not None:
+                msg.flags.rcode = answers.rcode
                 break
 
     def process_status(self, msg: Message):

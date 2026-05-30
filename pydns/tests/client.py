@@ -28,6 +28,7 @@ class ClientTests(TestCase):
         self.assertEqual(response.answers[1].rtype, RType.A)
         self.assertEqual({str(a.content.ip) for a in response.answers}, #type: ignore
             {'1.0.0.1', '1.1.1.1'})
+        self.assertEqual(response.source, '1.1.1.1')
 
     def test_tcp_client(self):
         """
@@ -41,6 +42,7 @@ class ClientTests(TestCase):
         self.assertEqual(response.answers[1].rtype, RType.A)
         self.assertEqual({str(a.content.ip) for a in response.answers}, #type: ignore
             {'1.0.0.1', '1.1.1.1'})
+        self.assertEqual(response.source, '1.1.1.1')
 
     def test_https_client(self):
         """
@@ -54,3 +56,4 @@ class ClientTests(TestCase):
         self.assertEqual(response.answers[1].rtype, RType.A)
         self.assertEqual({str(a.content.ip) for a in response.answers}, #type: ignore
             {'1.0.0.1', '1.1.1.1'})
+        self.assertEqual(response.source, client.url)

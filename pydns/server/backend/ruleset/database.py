@@ -164,6 +164,14 @@ class DbmRuleEngine(RuleEngine):
             if sync:
                 self.sync()
 
+    def count_blocked(self) -> int:
+        """
+        count the number of blocked domain entries
+        """
+        blacklisted  = len([r for _, r in self.wildcards if r])
+        blacklisted += len([r for _, r in self.regex if r])
+        return blacklisted
+
     def match_domain(self, domain: bytes) -> Optional[bool]:
         """
         match domain against dbm database of rules

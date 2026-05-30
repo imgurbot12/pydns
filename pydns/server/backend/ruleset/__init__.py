@@ -76,11 +76,24 @@ class RuleEngine(Protocol):
     """
 
     @abstractmethod
+    def count_blocked(self) -> int:
+        """
+        count the number of blocked entries in engine
+        """
+        raise NotImplementedError
+
+    @abstractmethod
     def match_domain(self, domain: bytes) -> Optional[bool]:
+        """
+        check if a domain matches an engine rule and if its white/blacklisted
+        """
         raise NotImplementedError
 
     @abstractmethod
     def match_pattern(self, domain: bytes) -> Optional[bool]:
+        """
+        check if a domain matches an engine pattern and if its white/blacklisted
+        """
         raise NotImplementedError
 
     def match(self, domain: bytes) -> Optional[bool]:
@@ -109,9 +122,12 @@ class RuleBackend(Backend):
     engine:     Optional[RuleEngine] = None
     block_mode: BlockMode            = BlockMode.NODATA
 
+    blacklist_count: int = field(init=False, default=0)
+
     def __post_init__(self):
         self.recursion_available = self.backend.recursion_available
         self.blacklist -= self.whitelist
+        self.blacklist_count  = len(self.blacklist)
 
     def is_authority(self, domain: bytes) -> bool:
         """
@@ -167,6 +183,14 @@ class RuleBackend(Backend):
         if self.is_blocked(domain):
             return self.block_mode.get_answers(domain, rtype, self.source)
         return self.backend.get_answers(domain, rtype)
+
+    def count_blocked(self) -> int:
+        """
+        count number of blacklisted items in rule backend
+        """
+        blacklisted = self.engine.count_blocked() + self.blacklist_count \
+            if self.engine is not None else len(self.blacklist)
+        return blacklisted + self.backend.count_blocked()
 
 #** Imports **#
 from .database import DbmRuleEngine

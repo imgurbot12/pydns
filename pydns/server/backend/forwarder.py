@@ -32,11 +32,14 @@ class Forwarder(Backend):
         """
         query for answers w/ client if base-backend returns empty result
         """
-        answers, source, rcode = self.backend.get_answers(domain, rtype)
-        if not answers:
-            source  = self.source
+        answers = self.backend.get_answers(domain, rtype)
+        if not answers.answers and answers.rcode is None:
             message = self.client.query(Question(domain, rtype))
-            answers = [*message.answers, *message.authority]
-            answers.extend([
+            answers.source = self.source
+            answers.answers.extend(message.answers)
+            answers.answers.extend(message.authority)
+            answers.answers.extend([
                 a for a in message.additional if isinstance(a, Answer)])
-        return Answers(answers, source, rcode)
+            answers.forwarder = message.source
+        return answers
+

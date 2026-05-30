@@ -38,7 +38,6 @@ class CacheRecord:
         ttl = min(a.ttl for a in self.answers)
         ttl = min(ttl, expiration) if expiration else ttl
         now = time.time()
-        self.answers  = self.answers.copy()
         self.expires  = now + ttl
         self.accessed = now
 
@@ -125,7 +124,7 @@ class Cache(Backend):
             if len(self.cache) >= self.maxsize:
                 self.logger.debug(f'maxsize: {self.maxsize} exceeded. clearing cache!')
                 self.cache.clear()
-            self.cache[key] = CacheRecord(answers.answers, self.expiration)
+            self.cache[key] = CacheRecord(answers.answers.copy(), self.expiration)
 
     def get_answers(self, domain: bytes, rtype: RType) -> Answers:
         """
@@ -143,6 +142,6 @@ class Cache(Backend):
             and all(a.rtype in self.ignore_rtypes for a in answers.answers):
             return answers
         # save results to cache and return results
-        if answers:
+        if answers is not None and answers.answers:
             self.set_cache(domain, rtype, answers)
         return answers

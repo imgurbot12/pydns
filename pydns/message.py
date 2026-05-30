@@ -38,6 +38,7 @@ class Message:
     answers:    List[Answer]     = field(default_factory=list)
     authority:  List[Answer]     = field(default_factory=list)
     additional: List[BaseAnswer] = field(default_factory=list)
+    source:     Optional[str]    = field(repr=False, default=None)
 
     def raise_on_error(self):
         """
@@ -72,13 +73,15 @@ class Message:
         return bytes(raw)
 
     @classmethod
-    def unpack(cls, raw: bytes, ctx: Optional[Context] = None) -> Self:
+    def unpack(cls, raw: bytes,
+        ctx: Optional[Context] = None, source: Optional[str] = None) -> Self:
         """
         unpack serialized bytes into deserialized message object
 
-        :param raw: raw byte buffer
-        :param ctx: deserialization context object
-        :return:    unpacked message object
+        :param raw:    raw byte buffer
+        :param ctx:    deserialization context object
+        :param source: source attribution for message
+        :return:       unpacked message object
         """
         ctx   = ctx or Context()
         head  = PacketHeader.unpack(raw, ctx)
@@ -103,5 +106,6 @@ class Message:
             questions=questions,
             answers=answers,
             authority=authority,
-            additional=additional
+            additional=additional,
+            source=source,
         )
