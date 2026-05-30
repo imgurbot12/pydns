@@ -7,7 +7,7 @@ from ipaddress import IPv4Address, IPv6Address
 from typing import ClassVar, List, Optional, Protocol, Set
 
 from pyderive import dataclass, field
-from pydns import Answer, A, AAAA, DnsError, RCode
+from pydns import A, AAAA, Answer, RCode
 
 from .. import RType, Answers, Backend
 
@@ -42,27 +42,33 @@ def split_domains(domain: bytes) -> List[bytes]:
 #** Classes **#
 
 class BlockMode(str, Enum):
+    """
+    Block behavior for RuleEngine
+    """
+
     NODATA = 'nodata'
     """return an empty success response with no records"""
-
     NULL = 'null'
     """return localhost address (0.0.0.0 or ::) to prevent routing"""
-
     NXDOMAIN = 'nxdomain'
-    """return NXDOMAIN error indicating domain does not exist"""
+    """raise NXDOMAIN error indicating domain does not exist"""
 
-    def answers(self, domain: bytes, rtype: RType) -> List[Answer]:
+    def get_answers(self, domain: bytes, rtype: RType, source: str) -> Answers:
         """
         generate answers based on block-mode
+
+        :param domain: question domain
+        :param rtype:  question requested record-type
+        :return:       list of associated answers
         """
         if self == self.NULL:
             if rtype == RType.A:
-                return [Answer(domain, 60, NULL_IPV4)]
+                return Answers([Answer(domain, 60, NULL_IPV4)], source)
             if rtype == RType.AAAA:
-                return [Answer(domain, 60, NULL_IPV6)]
+                return Answers([Answer(domain, 60, NULL_IPV6)], source)
         if self == self.NXDOMAIN:
-            raise DnsError('blocked', RCode.NonExistantDomain)
-        return []
+            return Answers([], source, RCode.NonExistantDomain)
+        return Answers([], source)
 
 class RuleEngine(Protocol):
     """
@@ -159,8 +165,7 @@ class RuleBackend(Backend):
         :return:       empty-answers (if blocked), else standard search results
         """
         if self.is_blocked(domain):
-            answers = self.block_mode.answers(domain, rtype)
-            return Answers(answers, self.source)
+            return self.block_mode.get_answers(domain, rtype, self.source)
         return self.backend.get_answers(domain, rtype)
 
 #** Imports **#

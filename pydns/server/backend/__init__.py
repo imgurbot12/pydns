@@ -2,9 +2,9 @@
 DNS Server Data Backend Implementations
 """
 from abc import abstractmethod
-from typing import NamedTuple, Protocol, List, ClassVar
+from typing import NamedTuple, Optional, Protocol, List, ClassVar
 
-from ... import RType, Answer
+from ... import Answer, RCode, RType
 
 #** Variables **#
 __all__ = [
@@ -29,6 +29,7 @@ class Answers(NamedTuple):
     """
     answers: List[Answer]
     source:  str
+    rcode:   Optional[RCode] = None
 
 class Backend(Protocol):
     """
