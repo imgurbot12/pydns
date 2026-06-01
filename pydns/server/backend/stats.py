@@ -4,8 +4,8 @@ DNS Answer Statistics Backend Wrapper
 import dbm
 import struct
 from abc import abstractmethod
-from datetime import datetime
-from typing import ClassVar, Dict, List, Optional, Protocol, cast
+from datetime import datetime, timedelta
+from typing import ClassVar, Dict, List, Optional, Protocol, Tuple, cast
 from typing_extensions import MutableMapping
 
 from pyderive import dataclass, field
@@ -96,9 +96,10 @@ class SimpleStatStore(StatStorage):
         """
         compile statistics for each hour in the data from store
         """
+        now = datetime.now()
         stats: Dict[int, Stats] = {}
         for key in self.data.keys():
-            (value, )   = struct.unpack('>Q', self.data[key])
+            value, _    = self._get(key, now)
             hour, *rest = key.decode().split('_', 2)
             key,  end   = rest if len(rest) > 1 else (rest[0], None)
             hour        = int(hour)
@@ -120,13 +121,28 @@ class SimpleStatStore(StatStorage):
         statistics.sort(key=lambda s: s.hour)
         return statistics
 
-    def _update(self, key: bytes, count: int):
-        key   = f'{datetime.now().hour}_'.encode() + key
+    def _set(self, key: bytes, value: int, expr: datetime):
+        """set value in database"""
+        self.data[key] = struct.pack('>QQ', value, int(expr.timestamp()))
+
+    def _get(self, key: bytes, now: Optional[datetime] = None) -> Tuple[int, datetime]:
+        """retrieve value from database or default"""
+        now   = now or datetime.now()
         value = self.data.get(key, None)
-        if value is not None:
-            (prev, ) = struct.unpack('>Q', value)
-            count   += prev
-        self.data[key] = struct.pack('>Q', count)
+        if value is None:
+            return (0, now + timedelta(days=7))
+        (value, expr) = struct.unpack('>QQ', value)
+        expr          = datetime.fromtimestamp(expr)
+        if expr <= now:
+            return (0, now + timedelta(days=7))
+        return (value, expr)
+
+    def _update(self, key: bytes, count: int):
+        """update an existing integer value by the specified count"""
+        now        = datetime.now()
+        key        = f'{now.hour}_'.encode() + key
+        prev, expr = self._get(key, now)
+        self._set(key, count + prev, expr)
 
     def count_authority(self):
         self._update(b'authority', 1)

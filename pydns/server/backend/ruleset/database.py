@@ -14,6 +14,9 @@ from .wildcard import WildcardMatch
 #** Variables **#
 __all__ = ['DbmRuleEngine']
 
+#: supported dbm engines
+VALID_ENGINES = ['gnu', 'ndbm']
+
 RegexRules = List[Tuple[re.Pattern, Status]]
 
 WildcardRules = List[Tuple[WildcardMatch, Status]]
@@ -27,11 +30,12 @@ def open_dbm(path: str, flags: str):
     :param path:  filepath to dbm database
     :param flags: flags to use when loading database
     """
-    database = dbm.open(path, flag=flags) #type: ignore
-    which    = dbm.whichdb(path)
-    if which is None or which == 'dbm.dumb':
-        raise RuntimeError('Python has no valid DBM engine installed.')
-    return database
+    for engine in VALID_ENGINES:
+        dbm_flags = f'{flags}f' if engine == 'gnu' else flags
+        db        = getattr(dbm, engine, None)
+        if db is not None:
+            return db.open(path, dbm_flags)
+    raise RuntimeError('Python has no supported DBM engines installed.')
 
 def encode_defs(rules: RuleDefs) -> bytes:
     """
@@ -77,7 +81,7 @@ class DbmRuleEngine(RuleEngine):
                 wild = (WildcardMatch.compile(rdef.rule), rdef.status)
                 self.wildcards.append(wild)
 
-    def __init__(self, path: str, flag = 'c'):
+    def __init__(self, path: str, flag = 'cf'):
         self.dbm = open_dbm(path, flag)
         self._reload_patterns()
 
@@ -170,6 +174,11 @@ class DbmRuleEngine(RuleEngine):
         """
         blacklisted  = len([r for _, r in self.wildcards if r])
         blacklisted += len([r for _, r in self.regex if r])
+        sources = self.dbm.get(self.source_key, b'').decode().split(',')
+        for name in sources:
+            domain_key   = self.domain_key % name
+            domains      = self.dbm.get(domain_key, b'').split(b',')
+            blacklisted += len(domains)
         return blacklisted
 
     def match_domain(self, domain: bytes) -> Optional[bool]:
