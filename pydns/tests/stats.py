@@ -6,6 +6,8 @@ from datetime import datetime, timedelta
 from typing import List
 from unittest import TestCase
 
+from pydns.server.backend.stats import date_now
+
 from .. import RType
 from ..server.backend import *
 from ..server.backend.stats.sqlite import round_date
@@ -34,6 +36,10 @@ class StatTests(TestCase):
         stats = []
         for hour in range(0, hours):
             now       = round_date(datetime.now() - timedelta(hours=hour))
+            if random.randint(0, 3) == 1:
+                stats.append(Stats(date=now))
+                continue
+
             questions = random.randint(1, 10_000)
             blocked   = random.randint(1, questions)
             authority = random.randint(1, questions - blocked)
@@ -64,7 +70,23 @@ class StatTests(TestCase):
         stats.sort(key=lambda s: s.date)
         return stats
 
-    def test_stats(self):
+    def test_empty_stats(self):
+        """
+        ensure stat reporting still returns when empty
+        """
+        now   = date_now()
+        stats = self.store.stats()
+        self.assertEqual(len(stats), 24)
+        for n, stat in enumerate(stats, 1):
+            hour = now - timedelta(hours=24-n)
+            self.assertEqual(stat.date, hour)
+            self.assertEqual(stat.total_queries, 0)
+            self.assertEqual(stat.blocked_queries, 0)
+            self.assertEqual(stat.with_authority, 0)
+            self.assertDictEqual(stat.query_counts, {})
+            self.assertDictEqual(stat.query_sources, {})
+
+    def test_full_stats(self):
         """
         ensure stat recording is accurate
         """

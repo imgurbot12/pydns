@@ -40,12 +40,13 @@ class SqliteStatStore(StatStorage):
         """
         retrieve stats grouped by hour for the specified time-span
         """
-        now:   datetime = date_now() - span
+        now:   datetime = date_now()
+        then:  datetime = now - span
         stats: Dict[datetime, Stats] = {}
 
         cur = self.conn.cursor()
         sql = 'SELECT * FROM Stats WHERE Date>=?'
-        cur.execute(sql, (now.isoformat(), ))
+        cur.execute(sql, (then.isoformat(), ))
         for row in cur.fetchall():
             (s_date, authority, blocked, questions) = row
             date = datetime.fromisoformat(s_date)
@@ -66,6 +67,12 @@ class SqliteStatStore(StatStorage):
             for (source, count) in cur.execute(sql, (s_date, )):
                 stat.query_sources.setdefault(source, 0)
                 stat.query_sources[source] += count
+
+        total_hours = int(span.total_seconds() // 3600)
+        for hour in range(0, total_hours):
+            then = now - timedelta(hours=hour)
+            if then not in stats:
+                stats[then] = Stats(date=then)
 
         final = list(stats.values())
         final.sort(key=lambda s: s.date)
