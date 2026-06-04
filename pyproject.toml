@@ -38,5 +38,8 @@ classifiers = [
 [project.urls]
 Repository = "https://github.com/imgurbot12/pydns"
 
+[tool.setuptools]
+include-package-data = true
+
 [tool.setuptools.package-data]
-"pydns3" = ["py.typed"]
+"pydns" = ["py.typed", "server/backend/_sql/*.sql"]

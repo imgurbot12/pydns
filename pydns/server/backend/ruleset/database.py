@@ -8,15 +8,15 @@ from io import StringIO
 from datetime import datetime
 from typing import List, Optional
 
-from .. import RuleEngine, RStatus
-from ..parser import RuleDefs, Domain, Regex, Wildcard, parse_rules
-from ..wildcard import WildcardMatch
+from . import RuleEngine, RStatus
+from .parser import RuleDefs, Domain, Regex, Wildcard, parse_rules
+from .wildcard import WildcardMatch
 
 #** Variables **#
 __all__ = ['SqliteRuleEngine']
 
 #: schema file location
-SCHEMA = os.path.join(os.path.dirname(__file__), 'schema.sql')
+SCHEMA = os.path.join(os.path.dirname(__file__), '../_sql/ruleset.sql')
 
 #** Classes **#
 

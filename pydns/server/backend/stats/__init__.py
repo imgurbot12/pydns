@@ -2,7 +2,7 @@
 DNS Answer Statistics Backend Wrapper
 """
 from abc import abstractmethod
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import ClassVar, Dict, List, Optional, Protocol
 
 from pyderive import dataclass, field
@@ -51,7 +51,7 @@ class StatStorage(Protocol):
     """
 
     @abstractmethod
-    def stats(self) -> List[Stats]:
+    def stats(self, span: timedelta = timedelta(hours=24)) -> List[Stats]:
         """
         list stats for each hour in the day (24 entries)
         """
@@ -98,11 +98,11 @@ class StatBackend(Backend):
     backend: Backend
     storage: StatStorage
 
-    def stats(self) -> List[Stats]:
+    def stats(self, span: timedelta = timedelta(hours=24)) -> List[Stats]:
         """
         retrieve statistics from storage
         """
-        return self.storage.stats()
+        return self.storage.stats(span)
 
     def is_blocked(self, answers: Answers) -> bool:
         """

@@ -13,7 +13,7 @@ from .... import RType
 __all__ = ['SqliteStatStore']
 
 #: schema file location
-SCHEMA = os.path.join(os.path.dirname(__file__), 'schema.sql')
+SCHEMA = os.path.join(os.path.dirname(__file__), '../_sql/stats.sql')
 
 def round_date(now: datetime) -> datetime:
     """
