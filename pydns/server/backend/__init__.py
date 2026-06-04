@@ -18,14 +18,15 @@ __all__ = [
     'Forwarder',
     'MemoryBackend',
 
+    'RStatus',
     'BlockMode',
     'RuleEngine',
     'RuleBackend',
-    'DbmRuleEngine',
+    'SqliteRuleEngine',
 
     'Stats',
     'StatStorage',
-    'SimpleStatStore',
+    'SqliteStatStore',
     'StatBackend',
 ]
 
@@ -79,5 +80,5 @@ class Backend(Protocol):
 from .cache import Cache
 from .forwarder import Forwarder
 from .memory import MemoryBackend
-from .ruleset import BlockMode, RuleEngine, RuleBackend, DbmRuleEngine
-from .stats import Stats, StatStorage, SimpleStatStore, StatBackend
+from .ruleset import RStatus, BlockMode, RuleEngine, RuleBackend, SqliteRuleEngine
+from .stats import Stats, StatStorage, SqliteStatStore, StatBackend

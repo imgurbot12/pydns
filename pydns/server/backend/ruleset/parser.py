@@ -4,15 +4,15 @@ RulesList Parser AdGuard/Domain-List/uBlock/etc...
 import re
 import ipaddress
 import warnings
-from typing import Iterable, NewType, Optional, TextIO, Union
+from typing import Iterable, NamedTuple, Optional, TextIO, Union
 
-from pyderive.extensions.serde import Serde
+from . import RStatus
 
 #** Variables **#
 __all__ = [
-    'Status',
     'Domain',
     'Regex',
+    'Wildcard',
     'Rule',
     'RuleDef',
     'RuleDefs',
@@ -20,9 +20,6 @@ __all__ = [
     'parse_rule',
     'parse_rules',
 ]
-
-#: wrapper around whitelist/blacklist determination
-Status = NewType('Status', bool)
 
 #: wrapper around domain string
 class Domain(str): pass
@@ -36,9 +33,9 @@ class Wildcard(str): pass
 #: Possible Rules (Domain/Wildcard/Regex)
 Rule = Union[Domain, Regex, Wildcard]
 
-class RuleDef(Serde, slots=True):
+class RuleDef(NamedTuple):
     rule:   Rule
-    status: Status
+    status: RStatus
 
 #: generator of rule results
 RuleDefs = Iterable[RuleDef]
@@ -96,14 +93,14 @@ def parse_rule(line: str) -> Optional[RuleDef]:
     :return:     parsed rule definition
     """
     # handle regex expr rule
-    status = Status(not line.startswith('@@'))
-    if line.startswith('/'):
-        line = line.strip('/')
-        if not is_regex(line):
+    status = RStatus.WHITELIST if line.startswith('@@') else RStatus.BLACKLIST
+    rule = line.lstrip('@')
+    if rule.startswith('/'):
+        rule = rule.strip('/')
+        if not is_regex(rule):
             return
-        return RuleDef(Regex(line), status)
+        return RuleDef(Regex(rule), status)
     # parse adguard options from rule: ||example.com^$settings=1
-    rule = line.strip('@')
     if rule.startswith('|') and '$' in rule:
         rule, options = rule.rsplit('$', 1)
         if not any(opt in options for opt in ALLOWED_OPTIONS):

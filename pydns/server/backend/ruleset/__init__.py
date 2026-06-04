@@ -13,11 +13,12 @@ from .. import RType, Answers, Backend
 
 #** Variables **#
 __all__ = [
+    'RStatus',
     'BlockMode',
     'RuleEngine',
     'RuleBackend',
 
-    'DbmRuleEngine',
+    'SqliteRuleEngine',
 ]
 
 NULL_IPV4 = A(IPv4Address('0.0.0.0'))
@@ -40,6 +41,10 @@ def split_domains(domain: bytes) -> List[bytes]:
     return domains
 
 #** Classes **#
+
+class RStatus(int, Enum):
+    BLACKLIST = 0
+    WHITELIST = 1
 
 class BlockMode(str, Enum):
     """
@@ -83,30 +88,29 @@ class RuleEngine(Protocol):
         raise NotImplementedError
 
     @abstractmethod
-    def match_domain(self, domain: bytes) -> Optional[bool]:
+    def match_domain(self, domain: bytes) -> Optional[RStatus]:
         """
         check if a domain matches an engine rule and if its white/blacklisted
         """
         raise NotImplementedError
 
     @abstractmethod
-    def match_pattern(self, domain: bytes) -> Optional[bool]:
+    def match_pattern(self, domain: bytes) -> Optional[RStatus]:
         """
         check if a domain matches an engine pattern and if its white/blacklisted
         """
         raise NotImplementedError
 
-    def match(self, domain: bytes) -> Optional[bool]:
+    def match(self, domain: bytes) -> Optional[RStatus]:
         """
         check if domain is contained within the database
 
         :param domain: domain to check if in db
         :return:       true if domain in db
         """
-        for match in split_domains(domain):
-            rule = self.match_domain(match)
-            if rule is not None:
-                return rule
+        rule = self.match_domain(*split_domains(domain))
+        if rule is not None:
+            return rule
         return self.match_pattern(domain)
 
 @dataclass(slots=True, repr=False)
@@ -154,20 +158,20 @@ class RuleBackend(Backend):
             # match against exact domain
             for match in domains:
                 matches = self.engine.match_domain(match)
-                if matches is True:
+                if matches is RStatus.BLACKLIST:
                     self.blacklist.add(domain)
                     self.blacklist.add(match)
                     return True
-                if matches is False:
+                if matches is RStatus.WHITELIST:
                     self.whitelist.add(domain)
                     self.whitelist.add(match)
                     return False
             # match against patterns
             matches = self.engine.match_pattern(domain)
-            if matches is True:
+            if matches is RStatus.BLACKLIST:
                 self.blacklist.add(domain)
                 return True
-            if matches is False:
+            if matches is RStatus.WHITELIST:
                 self.whitelist.add(domain)
                 return False
         return False
@@ -193,4 +197,4 @@ class RuleBackend(Backend):
         return blacklisted + self.backend.count_blocked()
 
 #** Imports **#
-from .database import DbmRuleEngine
+from .database import SqliteRuleEngine
