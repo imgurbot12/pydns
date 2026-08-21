@@ -97,7 +97,7 @@ class Message:
         additional = []
         for _ in range(head.additional):
             rtype  = peek_rtype(raw, ctx)
-            newcls = EdnsAnswer if rtype == RType.OPT else cls
+            newcls = EdnsAnswer if rtype == RType.OPT else Answer
             answer = newcls.unpack(raw, ctx)
             additional.append(answer)
         return cls(

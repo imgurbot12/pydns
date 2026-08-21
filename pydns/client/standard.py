@@ -83,13 +83,13 @@ class UdpClient(Client):
     def cleanup(self, sock: socket.socket):
         sock.close()
 
-    def request(self, msg: Message) -> Message:
+    def request(self, msg: Message, addr: Optional[RawAddr] = None) -> Message:
         with self.pool.reserve(discard_on=(socket.timeout, )) as sock:
             # send request
-            addr = self.pickaddr()
+            addr = addr or self.pickaddr()
             data = msg.pack()
             sock.sendto(data, addr)
-            # recieve response
+            # receive response
             data, _ = sock.recvfrom(self.block_size)
             return Message.unpack(data, source=addr[0])
 

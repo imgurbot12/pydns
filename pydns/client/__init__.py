@@ -37,6 +37,14 @@ class BaseClient(Protocol):
         """
         raise NotImplementedError
 
+    def _build_query(self, query: Question) -> Message:
+        """
+        build query request message from question
+        """
+        mid     = new_message_id()
+        flags   = Flags(qr=QR.Question, op=OpCode.Query)
+        return Message(id=mid, flags=flags, questions=[query])
+
     def query(self, query: Question) -> Message:
         """
         build request message from query and return response
@@ -44,9 +52,7 @@ class BaseClient(Protocol):
         :param query: simple dns query
         :return:      response message to query
         """
-        mid     = new_message_id()
-        flags   = Flags(qr=QR.Question, op=OpCode.Query)
-        message = Message(id=mid, flags=flags, questions=[query])
+        message = self._build_query(query)
         return self.request(message)
 
 #** Imports **#
