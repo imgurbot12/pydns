@@ -11,7 +11,15 @@ from ..question import Question
 from ..message import Message
 
 #** Variables **#
-__all__ = ['BaseClient', 'UdpClient', 'TcpClient', 'HttpsClient']
+__all__ = [
+    'new_message_id',
+    'build_request',
+
+    'BaseClient',
+    'UdpClient',
+    'TcpClient',
+    'HttpsClient'
+]
 
 #** Functions **#
 
@@ -22,6 +30,17 @@ def new_message_id() -> int:
     :return: new valid message-id integer
     """
     return randint(1, 2 ** 16)
+
+def build_request(*questions: Question) -> Message:
+    """
+    build query request message from question
+
+    :param questions: list of questions to include in request
+    :return:          request message
+    """
+    mid   = new_message_id()
+    flags = Flags(qr=QR.Question, op=OpCode.Query)
+    return Message(id=mid, flags=flags, questions=list(questions))
 
 #** Classes **#
 
@@ -37,22 +56,14 @@ class BaseClient(Protocol):
         """
         raise NotImplementedError
 
-    def _build_query(self, query: Question) -> Message:
-        """
-        build query request message from question
-        """
-        mid     = new_message_id()
-        flags   = Flags(qr=QR.Question, op=OpCode.Query)
-        return Message(id=mid, flags=flags, questions=[query])
-
-    def query(self, query: Question) -> Message:
+    def query(self, *questions: Question) -> Message:
         """
         build request message from query and return response
 
-        :param query: simple dns query
-        :return:      response message to query
+        :param questions: dns queries
+        :return:          response message to query
         """
-        message = self._build_query(query)
+        message = build_request(*questions)
         return self.request(message)
 
 #** Imports **#

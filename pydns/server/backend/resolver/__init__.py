@@ -5,12 +5,13 @@ import math
 import random
 from abc import abstractmethod
 from datetime import datetime, timedelta
-from typing import Dict, Generic, List, Optional, Protocol, TypeVar
+from typing import ClassVar, Dict, Generic, List, Optional, Protocol, TypeVar
 
 from pyderive import dataclass
 
-from .... import Answer, Content, NS, Question, RType
-from ....client import UdpClient
+from .. import Answers, Backend
+from .... import A, AAAA, NS, Answer, Content, Question, RType
+from ....client import UdpClient, build_request
 
 #** Variables **#
 __all__ = [
@@ -21,19 +22,19 @@ __all__ = [
 C = TypeVar('C', bound=Content)
 
 ROOT_SERVERS = [
-    'a.root-servers.net',
-    'b.root-servers.net',
-    'c.root-servers.net',
-    'd.root-servers.net',
-    'e.root-servers.net',
-    'f.root-servers.net',
-    'g.root-servers.net',
-    'h.root-servers.net',
-    'i.root-servers.net',
-    'j.root-servers.net',
-    'k.root-servers.net',
-    'l.root-servers.net',
-    'm.root-servers.net',
+    b'a.root-servers.net',
+    b'b.root-servers.net',
+    b'c.root-servers.net',
+    b'd.root-servers.net',
+    b'e.root-servers.net',
+    b'f.root-servers.net',
+    b'g.root-servers.net',
+    b'h.root-servers.net',
+    b'i.root-servers.net',
+    b'j.root-servers.net',
+    b'k.root-servers.net',
+    b'l.root-servers.net',
+    b'm.root-servers.net',
 ]
 
 #** Classes **#
@@ -80,24 +81,67 @@ class ResolverCache(Protocol):
             for rtype, recs in cache.items():
                 self.put(domain, rtype, recs)
 
-class Resolver:
+class MemoryCache(ResolverCache):
     """
+    Basic In-Memory Cache for Resolver
     """
-    __slots__ = ('servers', 'client', 'cache')
+    __slots__ = ('cache', )
 
-    servers: List[str]
+    def __init__(self):
+        self.cache: Dict[bytes, Dict[RType, List[Record]]] = {}
+
+    def get(self, domain: bytes, rtype: RType) -> Optional[List[Record]]:
+        cache = self.cache.get(domain, None)
+        if not cache:
+            return
+        records = cache.get(rtype, None)
+        if records is None:
+            return
+        now     = datetime.now()
+        records = [r for r in records if r.expiration > now]
+        if not records:
+            cache.pop(rtype, None)
+            return
+        cache[rtype] = records
+        return records
+
+    def put(self, domain: bytes, rtype: RType, records: List[Record]):
+        self.cache.setdefault(domain, {})
+        self.cache[domain].setdefault(rtype, [])
+        self.cache[domain][rtype].extend(records)
+
+class Resolver(Backend):
+    """
+    Recursive Manual DNS Resolution Backend
+
+    This Backend recursively searches for a specific record from the root
+    domain servers which avoids relying on third-party dns servers to complete
+    the search on the client's behalf.
+    """
+    __slots__ = ('backend', 'cache', 'client', 'servers', )
+
+    source: ClassVar[str] = 'Resolver'
+
+    backend: Optional[Backend]
     cache:   ResolverCache
+    servers: List[bytes]
 
     def __init__(self,
-        root_servers: List[str]               = ROOT_SERVERS,
+        backend:      Optional[Backend]       = None,
+        root_servers: List[bytes]             = ROOT_SERVERS,
         cache:        Optional[ResolverCache] = None,
     ):
-        self.servers = root_servers
+        self.backend = backend
         self.client  = UdpClient([])
         self.cache   = cache or SqliteResolverCache('./rcache.db')
+        self.servers = root_servers
 
-    def get_closest_ns(self, domain: bytes) -> str:
+    def get_closest_ns(self, domain: bytes) -> bytes:
         """
+        get closest associated nameserver with the given domain
+
+        :param domain: domain to get associated nameserver for
+        :return:       closest associated nameserver
         """
         segments = domain.split(b'.')
         domains  = (b'.'.join(segments[n:]) for n in range(0, len(segments)))
@@ -108,11 +152,33 @@ class Resolver:
                 break
         if servers:
             ns = random.choice(servers)
-            return ns.content.nameserver.decode()
+            return ns.content.nameserver
         return random.choice(self.servers)
+
+    def get_host(self, domain: bytes) -> str:
+        """
+        retrieve host address associated with domain before connecting
+
+        :param domain: specified domain to resolve
+        :return:       resolved host address for domain
+        """
+        ipv4: Optional[List[Record[A]]] = self.cache.get(domain, RType.A)
+        if ipv4:
+            ips = [str(r.content.ip) for r in ipv4]
+            return random.choice(ips)
+        ipv6: Optional[List[Record[AAAA]]] = self.cache.get(domain, RType.AAAA)
+        if ipv6:
+            ips = [str(r.content.ip) for r in ipv6]
+            return random.choice(ips)
+        return domain.decode()
 
     def resolve(self, domain: bytes, rtype: RType) -> Optional[List[Answer]]:
         """
+        lookup the associated record with recursive lookup
+
+        :param domain: domain to lookup
+        :param rtype:  record type to retrieve for domain
+        :return:       list of associated answers (if found)
         """
         answers = self.cache.get(domain, rtype)
         if answers:
@@ -121,17 +187,19 @@ class Resolver:
 
         server   = self.get_closest_ns(domain)
         question = Question(domain, rtype)
-        message  = self.client._build_query(question)
+        message  = build_request(question)
         while True:
-            addr = (server, 53)
+            host = self.get_host(server)
+            addr = (host, 53)
             res  = self.client.request(message, addr=addr)
             res.raise_on_error()
 
-            valid       = []
-            servers     = []
             raw_answers = res.answers + res.authority + res.additional
             answers     = [a for a in raw_answers if isinstance(a, Answer)]
             self.cache.put_answers(answers)
+
+            valid   = []
+            servers = []
             for answer in answers:
                 if answer.name == domain and answer.content.rtype == rtype:
                     valid.append(answer)
@@ -143,6 +211,19 @@ class Resolver:
             if not servers:
                 break
             server = random.choice(servers)
+
+    def is_authority(self, domain: bytes) -> bool:
+        if self.backend is not None:
+            return self.backend.is_authority(domain)
+        return False
+
+    def get_answers(self, domain: bytes, rtype: RType) -> Answers:
+        if self.backend is not None:
+            answers = self.backend.get_answers(domain, rtype)
+            if answers.answers or answers.rcode is not None:
+                return answers
+        r_answers = self.resolve(domain, rtype)
+        return Answers(r_answers or [], self.source)
 
 #** Init **#
 from .sqlite import SqliteResolverCache

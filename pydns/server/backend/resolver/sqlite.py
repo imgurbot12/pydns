@@ -25,14 +25,14 @@ SCHEMA = os.path.join(os.path.dirname(__file__), '../_sql/resolver.sql')
 class Encoder(TypeEncoder):
     def default(self, obj: Any) -> Any:
         if isinstance(obj, bytes):
-            return obj.hex()
+            return obj.decode('latin1')
         return super().default(obj)
 
 class Decoder(TypeDecoder):
     def default(self, anno: Type, obj: Any) -> Any:
         if anno is bytes \
             or (get_origin(anno) is Annotated and get_args(anno)[0] is bytes):
-            return bytes.fromhex(obj)
+            return obj.encode('latin1')
         return super().default(anno, obj)
 
 class SqliteResolverCache(ResolverCache):
