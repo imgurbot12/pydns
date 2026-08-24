@@ -2,9 +2,10 @@
 Simple Sqlite3 Resolver Cache Implementation
 """
 import os
+import json
 import sqlite3
 from datetime import datetime
-from typing import Any, List, Optional, Type
+from typing import Any, List, Optional, Type, Union
 from typing_extensions import Annotated, get_origin, get_args
 
 from pyderive.extensions.serde import (
@@ -12,13 +13,37 @@ from pyderive.extensions.serde import (
 
 from . import Record, ResolverCache
 from .... import RType
-from ....content import CONTENT_MAP
+from ....content import CONTENT_MAP, Content, Unknown
 
 #** Variables **#
 __all__ = ['SqliteResolverCache']
 
 #: schema file location
 SCHEMA = os.path.join(os.path.dirname(__file__), '../_sql/resolver.sql')
+
+#** Function **#
+
+def ser_content(record: Record) -> Union[str, bytes]:
+    """
+    serialize dns content record (including unknown variants)
+    """
+    if isinstance(record.content, Unknown):
+        unk   = record.content
+        value = unk.data.decode('latin1')
+        data  = {'rtype': unk.rtype.name, 'size': unk.size, 'data': value}
+        return json.dumps(data)
+    return serialize(record.content, 'json', encoder=Encoder())
+
+def des_content(cclass: Optional[Type[Content]], serial: str) -> Content:
+    """
+    deserialize dns content record (including unknown variants)
+    """
+    if cclass is None:
+        data    = json.loads(serial)
+        rtype   = RType[data['rtype']]
+        unk_cls = Unknown.new(rtype, data['size'])
+        return unk_cls(data['data'].encode('latin1'))
+    return deserialize(cclass, serial, 'json', decoder=Decoder())
 
 #** Classes **#
 
@@ -63,7 +88,7 @@ class SqliteResolverCache(ResolverCache):
         return did
 
     def get(self, domain: bytes, rtype: RType) -> Optional[List[Record]]:
-        cclass = CONTENT_MAP[rtype]
+        cclass = CONTENT_MAP.get(rtype, None)
         now = datetime.now()
         cur = self.conn.cursor()
         did = self._domain_id(cur, domain)
@@ -73,7 +98,7 @@ class SqliteResolverCache(ResolverCache):
         expired = 0
         for row in cur.fetchall():
             (content, expiration) = row
-            content    = deserialize(cclass, content, 'json', decoder=Decoder())
+            content    = des_content(cclass, content)
             expiration = datetime.fromisoformat(expiration)
             if expiration <= now:
                 expired += 1
@@ -91,7 +116,7 @@ class SqliteResolverCache(ResolverCache):
         args   = []
         for record in records:
             values.append('(?, ?, ?, ?)')
-            content    = serialize(record.content, 'json', encoder=Encoder())
+            content    = ser_content(record)
             expiration = record.expiration.isoformat()
             args.extend([did, rtype.name, content, expiration])
         sql = 'INSERT INTO Records VALUES ' + ','.join(values)

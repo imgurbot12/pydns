@@ -5,13 +5,15 @@ import math
 import random
 from abc import abstractmethod
 from datetime import datetime, timedelta
-from typing import ClassVar, Dict, Generic, List, Optional, Protocol, TypeVar
+from typing import (
+    ClassVar, Dict, Generic, List, Optional, Protocol, TypeVar, Union, cast)
 
 from pyderive import dataclass
 
 from .. import Answers, Backend
 from .... import A, AAAA, NS, Answer, Content, Question, RType
 from ....client import UdpClient, build_request
+from ....content import Unknown
 
 #** Variables **#
 __all__ = [
@@ -19,7 +21,7 @@ __all__ = [
     'ResolverCache',
 ]
 
-C = TypeVar('C', bound=Content)
+C = TypeVar('C', bound=Union[Content, Unknown])
 
 ROOT_SERVERS = [
     b'a.root-servers.net',
@@ -48,7 +50,7 @@ class Record(Generic[C]):
         """
         """
         ttl = math.floor((self.expiration - now).total_seconds())
-        return Answer(domain, ttl, self.content)
+        return Answer(domain, ttl, cast(Content, self.content))
 
 class ResolverCache(Protocol):
     """
@@ -132,9 +134,10 @@ class Resolver(Backend):
         backend:      Optional[Backend]       = None,
         root_servers: List[bytes]             = ROOT_SERVERS,
         cache:        Optional[ResolverCache] = None,
+        client:       Optional[UdpClient]     = None,
     ):
         self.backend = backend
-        self.client  = UdpClient([])
+        self.client  = client or UdpClient([])
         self.cache   = cache or SqliteResolverCache('./rcache.db')
         self.servers = root_servers
 

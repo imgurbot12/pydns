@@ -5,14 +5,13 @@ from typing import List, Optional, Type
 from unittest import TestCase
 
 from .. import A, NS, RType, Answer
-from ..content import Content
+from ..content import Content, Unknown
 from ..server.backend.resolver import MemoryCache, Record, Resolver
 
 #** Variables **#
 __all__ = ['ResolverTests']
 
 #** Classes **#
-
 
 class ResolverTests(TestCase):
     """
@@ -24,7 +23,7 @@ class ResolverTests(TestCase):
         self.resolver = Resolver(cache=self.cache)
 
     def assertAnswers(self,
-        answers: Optional[List[Answer]], rclass: Type[Content]):
+        answers: Optional[List[Answer]], rclass: Type):
         """
         assert answers are not empty and match the given class
         """
@@ -34,7 +33,7 @@ class ResolverTests(TestCase):
         self.assertTrue(all(isinstance(a.content, rclass) for a in answers))
 
     def assertRecords(self,
-        records: Optional[List[Record]], rclass: Type[Content]):
+        records: Optional[List[Record]], rclass: Type):
         """
         assert records are not empty and match the given class
         """
@@ -56,4 +55,18 @@ class ResolverTests(TestCase):
         self.assertRecords(com, NS)
         self.assertRecords(google_com, NS)
         self.assertRecords(www_google_com, A)
+
+    def test_unknown(self):
+        """
+        """
+        answers = self.resolver.resolve(b'www.google.com', RType.HTTPS)
+        self.assertAnswers(answers, Unknown)
+        answers = answers or []
+        self.assertEqual(len(answers), 1)
+        self.assertEqual(answers[0].content.rtype, RType.HTTPS)
+
+        https = self.cache.get(b'www.google.com', RType.HTTPS) or []
+        self.assertRecords(https, Unknown)
+        self.assertEqual(len(https), 1)
+        self.assertEqual(answers[0].content.rtype, RType.HTTPS)
 
