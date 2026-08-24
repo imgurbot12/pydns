@@ -199,6 +199,7 @@ class SqliteRuleEngine(RuleEngine):
         if rec is not None:
             (status, ) = rec
             return RStatus.WHITELIST if status else RStatus.BLACKLIST
+        return None
 
     def match_pattern(self, domain: bytes) -> Optional[RStatus]:
         """
@@ -216,3 +217,4 @@ class SqliteRuleEngine(RuleEngine):
             return RStatus.BLACKLIST
         if any(r.match(s_domain) for r in self.regex_block):
             return RStatus.BLACKLIST
+        return None

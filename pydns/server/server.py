@@ -55,7 +55,7 @@ class Server(BaseSession):
             # report and assign answers
             code = f' code={answers.rcode.name}' if answers.rcode else ''
             self.logger.info(
-                f'{self.addr_str} | {q.name} {q.qtype.name} '
+                f'{self.addr_str} | {q.name!r} {q.qtype.name} '
                 f'answers={len(answers.answers)} src={answers.source}{code}')
             for answer in answers.answers:
                 if answer.rtype == RType.SOA:

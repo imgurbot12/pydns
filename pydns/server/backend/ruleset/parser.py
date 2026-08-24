@@ -98,13 +98,13 @@ def parse_rule(line: str) -> Optional[RuleDef]:
     if rule.startswith('/'):
         rule = rule.strip('/')
         if not is_regex(rule):
-            return
+            return None
         return RuleDef(Regex(rule), status)
     # parse adguard options from rule: ||example.com^$settings=1
     if rule.startswith('|') and '$' in rule:
         rule, options = rule.rsplit('$', 1)
         if not any(opt in options for opt in ALLOWED_OPTIONS):
-            return
+            return None
     # check if rule is in old `/etc/hosts` style format: `0.0.0.0 example.com`
     if ' ' in rule:
         start, end = rule.split(' ', 1)
@@ -123,7 +123,7 @@ def parse_rule(line: str) -> Optional[RuleDef]:
        return RuleDef(Domain(clean_rule), status)
     # ignore ip-address rules since they won't apply to anything: ||1.2.3.4^
     if is_ipaddr(clean_rule):
-        return
+        return None
     # treat non-domains without a clear ending as a wildcard: ||abcdef.^
     if not any(rule.startswith(c) for c in '|*'):
         clean_rule = '*' + rule
@@ -134,6 +134,7 @@ def parse_rule(line: str) -> Optional[RuleDef]:
         return RuleDef(Wildcard(clean_rule), status)
     # error on failure to parse
     warnings.warn(f'Invalid Rule: {line!r}')
+    return None
 
 def parse_rules(f: TextIO) -> RuleDefs:
     """

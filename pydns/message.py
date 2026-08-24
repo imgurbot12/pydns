@@ -94,7 +94,7 @@ class Message:
         questions  = [qclass.unpack(raw, ctx) for _ in range(head.questions)]
         answers    = [anclass.unpack(raw, ctx) for _ in range(head.answers)]
         authority  = [auclass.unpack(raw, ctx) for _ in range(head.authority)]
-        additional = []
+        additional = [] #type: List[BaseAnswer]
         for _ in range(head.additional):
             rtype  = peek_rtype(raw, ctx)
             newcls = EdnsAnswer if rtype == RType.OPT else Answer

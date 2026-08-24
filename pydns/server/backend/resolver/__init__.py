@@ -87,21 +87,23 @@ class MemoryCache(ResolverCache):
     """
     __slots__ = ('cache', )
 
+    cache: Dict[bytes, Dict[RType, List[Record]]]
+
     def __init__(self):
-        self.cache: Dict[bytes, Dict[RType, List[Record]]] = {}
+        self.cache = {}
 
     def get(self, domain: bytes, rtype: RType) -> Optional[List[Record]]:
         cache = self.cache.get(domain, None)
         if not cache:
-            return
+            return None
         records = cache.get(rtype, None)
         if records is None:
-            return
+            return None
         now     = datetime.now()
         records = [r for r in records if r.expiration > now]
         if not records:
             cache.pop(rtype, None)
-            return
+            return None
         cache[rtype] = records
         return records
 
@@ -195,12 +197,12 @@ class Resolver(Backend):
             res.raise_on_error()
 
             raw_answers = res.answers + res.authority + res.additional
-            answers     = [a for a in raw_answers if isinstance(a, Answer)]
-            self.cache.put_answers(answers)
+            filtered    = [a for a in raw_answers if isinstance(a, Answer)]
+            self.cache.put_answers(filtered)
 
             valid   = []
             servers = []
-            for answer in answers:
+            for answer in filtered:
                 if answer.name == domain and answer.content.rtype == rtype:
                     valid.append(answer)
                 if isinstance(answer.content, NS):
@@ -211,6 +213,7 @@ class Resolver(Backend):
             if not servers:
                 break
             server = random.choice(servers)
+        return None
 
     def is_authority(self, domain: bytes) -> bool:
         if self.backend is not None:

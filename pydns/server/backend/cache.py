@@ -102,15 +102,15 @@ class Cache(Backend):
         """
         retrieve from cache directly if present
         """
-        key = f'{domain}->{rtype.name}'
+        key = f'{domain!r}->{rtype.name}'
         with self.mutex:
             if key not in self.cache:
-                return
+                return None
             record = self.cache[key]
             if record.is_expired():
                 self.logger.debug(f'{key} expired')
                 del self.cache[key]
-                return
+                return None
             return Answers(record.answers.copy(), self.source)
 
     def set_cache(self, domain: bytes, rtype: RType, answers: Answers):
@@ -120,7 +120,7 @@ class Cache(Backend):
         if not answers.answers:
             self.logger.debug(f'cannot cache empty record for {domain!r}')
             return
-        key = f'{domain}->{rtype.name}'
+        key = f'{domain!r}->{rtype.name}'
         with self.mutex:
             if len(self.cache) >= self.maxsize:
                 self.logger.debug(f'maxsize: {self.maxsize} exceeded. clearing cache!')

@@ -3,7 +3,7 @@ DNS Server Stats Backend Engine UnitTests
 """
 import random
 from datetime import datetime, timedelta
-from typing import List
+from typing import Dict, List
 from unittest import TestCase
 
 from pydns.server.backend.stats import date_now
@@ -44,8 +44,8 @@ class StatTests(TestCase):
             blocked   = random.randint(1, questions)
             authority = random.randint(1, questions - blocked)
 
-            rtypes  = {}
-            sources = {}
+            rtypes:  Dict[RType, int] = {}
+            sources: Dict[str, int]   = {}
             for rtype in random.choices(RTYPES, k=questions):
                 rtypes.setdefault(rtype, 0)
                 rtypes[rtype] += 1

@@ -30,8 +30,8 @@ class MemoryBackend(Backend):
     """
     Simple In-Memory Backend for DNS Records
     """
-    source:              ClassVar[str]  = 'MemDB'
-    recursion_available: ClassVar[bool] = False #type: ignore
+    source: ClassVar[str] = 'MemDB'
+    recursion_available   = False
 
     __slots__ = ('records', 'authorities', 'default_ttl', 'allow_wildcards')
 
@@ -87,14 +87,14 @@ class MemoryBackend(Backend):
         :param domain:  dns domain to save records for
         :param records: list of record objects with ttls
         """
-        records = []
+        records = [] #type: RecordEntries
         for rname, r_entries in entries.items():
             rtype  = RType[rname]
             ctype  = get_ctype(rtype)
             for entry in r_entries:
                 ttl     = entry.pop('ttl', self.default_ttl)
                 content = ctype(**entry)
-                records.append({'ttl': ttl, 'content': content})
+                records.append(RecordDict(ttl=ttl, content=content))
         self.save_domain(domain, records)
 
     def is_authority(self, domain: bytes) -> bool:
