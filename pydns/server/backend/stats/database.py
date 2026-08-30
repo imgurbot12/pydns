@@ -102,19 +102,16 @@ class StatStoreDB(StatStorage):
     def count_question(self, rtype: RType,
         count: int = 1, now: Optional[datetime] = None):
         now = round_date(now) if now else None
-        with self.conn.transaction():
-            self._upsert(now, 'Questions', count)
-            self._upsert2(now, 'Questions', 'RType', rtype.name, count)
+        self._upsert(now, 'Questions', count)
+        self._upsert2(now, 'Questions', 'RType', rtype.name, count)
 
     def count_block(self, rtype: RType,
         count: int = 1, now: Optional[datetime] = None):
         now = round_date(now) if now else None
-        with self.conn.transaction():
-            self._upsert(now, 'Blocked', count)
-            self._upsert2(now, 'Blocked', 'RType', rtype.name, count)
+        self._upsert(now, 'Blocked', count)
+        self._upsert2(now, 'Blocked', 'RType', rtype.name, count)
 
     def count_source(self, source: str,
         count: int = 1, now: Optional[datetime] = None):
         now = round_date(now) if now else None
-        with self.conn.transaction():
-            self._upsert2(now, 'Sources', 'Source', source, count)
+        self._upsert2(now, 'Sources', 'Source', source, count)

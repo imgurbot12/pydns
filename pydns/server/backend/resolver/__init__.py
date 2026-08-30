@@ -13,7 +13,7 @@ from pyderive import dataclass
 from .. import Answers, Backend
 from .... import A, AAAA, NS, Answer, Content, Question, RType
 from ....client import UdpClient, build_request
-from ....content import Unknown
+from ....content import CNAME, Unknown
 
 #** Variables **#
 __all__ = [
@@ -190,6 +190,7 @@ class Resolver(Backend):
             now = datetime.now()
             return [r.to_answer(domain, now) for r in answers]
 
+        names    = []
         server   = self.get_closest_ns(domain)
         question = Question(domain, rtype)
         message  = build_request(question)
@@ -205,11 +206,15 @@ class Resolver(Backend):
 
             valid   = []
             servers = []
-            for answer in filtered:
-                if answer.name == domain and answer.content.rtype == rtype:
-                    valid.append(answer)
-                if isinstance(answer.content, NS):
-                    servers.append(answer.content.nameserver)
+            for ans in filtered:
+                if ans.name == domain or any(a.name == domain for a in names):
+                    if ans.content.rtype == rtype:
+                        valid.extend(names)
+                        valid.append(ans)
+                    if isinstance(ans.content, CNAME):
+                        names.append(ans)
+                if isinstance(ans.content, NS):
+                    servers.append(ans.content.nameserver)
 
             if valid:
                 return valid
