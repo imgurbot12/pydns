@@ -15,7 +15,7 @@ from .... import RType
 __all__ = [
     'Stats',
     'StatStorage',
-    'SqliteStatStore',
+    'StatStoreDB',
     'StatBackend',
 ]
 
@@ -131,4 +131,4 @@ class StatBackend(Backend):
         return answers
 
 #** Import **#
-from .sqlite import SqliteStatStore
+from .database import StatStoreDB

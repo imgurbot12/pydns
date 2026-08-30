@@ -18,7 +18,7 @@ __all__ = [
     'RuleEngine',
     'RuleBackend',
 
-    'SqliteRuleEngine',
+    'RuleEngineDB',
 ]
 
 NULL_IPV4 = A(IPv4Address('0.0.0.0'))
@@ -197,4 +197,4 @@ class RuleBackend(Backend):
         return blacklisted + self.backend.count_blocked()
 
 #** Imports **#
-from .database import SqliteRuleEngine
+from .database import RuleEngineDB

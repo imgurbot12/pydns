@@ -96,7 +96,7 @@ class Server(BaseSession):
         self.addr_str = '%s:%d' % self.addr
         self.logger.debug(f'{self.addr_str} | connection-made')
 
-    def data_recieved(self, data: bytes):
+    def data_received(self, data: bytes):
         """
         parse raw packet-data and process request
         """

@@ -1,9 +1,7 @@
 """
-Simple Sqlite3 Resolver Cache Implementation
+Simple Database Resolver Cache Implementation
 """
-import os
 import json
-import sqlite3
 from datetime import datetime
 from typing import Any, List, Optional, Type, Union
 from typing_extensions import Annotated, get_origin, get_args
@@ -12,14 +10,12 @@ from pyderive.extensions.serde import (
     TypeEncoder, TypeDecoder, serialize, deserialize)
 
 from . import Record, ResolverCache
+from .._sql import resolver_db
 from .... import RType
 from ....content import CONTENT_MAP, Content, Unknown
 
 #** Variables **#
-__all__ = ['SqliteResolverCache']
-
-#: schema file location
-SCHEMA = os.path.join(os.path.dirname(__file__), '../_sql/resolver.sql')
+__all__ = ['ResolverCacheDB']
 
 #** Function **#
 
@@ -60,43 +56,35 @@ class Decoder(TypeDecoder):
             return obj.encode('latin1')
         return super().default(anno, obj)
 
-class SqliteResolverCache(ResolverCache):
+class ResolverCacheDB(ResolverCache):
     """
     """
     __slots__ = ('conn', )
 
     def __init__(self, path: str):
-        self.conn = sqlite3.connect(path, check_same_thread=False, autocommit=True)
-        self.conn.execute('PRAGMA journal_mode=WAL')
-        with open(SCHEMA, 'r') as f:
-            self.conn.executescript(f.read())
-        self.conn.autocommit = True
+        self.conn = resolver_db(path, autocommit=True)
 
-    def _domain_id(self, cur: sqlite3.Cursor, domain: bytes) -> int:
+    def _domain_id(self, domain: bytes) -> int:
         """
         """
         dom = domain.decode('latin1')
         sql = 'SELECT DomainId FROM Domains WHERE Domain=?'
-        cur.execute(sql, (dom, ))
-        rec = cur.fetchone()
+        rec = self.conn.fetch_one(sql, (domain, ))
         if rec is not None:
             return rec[0]
-        cur.execute('SELECT MAX(DomainId)+1 FROM Domains')
-        (did, ) = cur.fetchone()
-        did     = did or 1
-        cur.execute('INSERT INTO Domains VALUES (?, ?)', (did, dom))
+        rec = self.conn.fetch_one('SELECT MAX(DomainId)+1 FROM Domains')
+        did = (rec[0] if rec else 1) or 1
+        self.conn.execute('INSERT INTO Domains VALUES (%s, %s)', (did, dom))
         return did
 
     def get(self, domain: bytes, rtype: RType) -> Optional[List[Record]]:
         cclass = CONTENT_MAP.get(rtype, None)
         now = datetime.now()
-        cur = self.conn.cursor()
-        did = self._domain_id(cur, domain)
+        did = self._domain_id(domain)
         sql = 'SELECT Content,Expiration FROM Records WHERE DomainId=? AND RType=?'
-        cur.execute(sql, (did, rtype.name))
         records = []
         expired = 0
-        for row in cur.fetchall():
+        for row in self.conn.fetch_yield(sql, (did, rtype.name)):
             (content, expiration) = row
             content    = des_content(cclass, content)
             expiration = datetime.fromisoformat(expiration)
@@ -106,18 +94,17 @@ class SqliteResolverCache(ResolverCache):
             records.append(Record(content, expiration))
         if expired:
             sql = 'DELETE FROM Records WHERE Expiration<=?'
-            cur.execute(sql, (now.isoformat(), ))
+            self.conn.execute(sql, (now.isoformat(), ))
         return records if records else None
 
     def put(self, domain: bytes, rtype: RType, records: List[Record]):
-        cur    = self.conn.cursor()
-        did    = self._domain_id(cur, domain)
+        did    = self._domain_id(domain)
         values = []
         args   = []
         for record in records:
-            values.append('(?, ?, ?, ?)')
+            values.append('(%s, %s, %s, %s)')
             content    = ser_content(record)
             expiration = record.expiration.isoformat()
             args.extend([did, rtype.name, content, expiration])
         sql = 'INSERT INTO Records VALUES ' + ','.join(values)
-        cur.execute(sql, tuple(args))
+        self.conn.execute(sql, tuple(args))

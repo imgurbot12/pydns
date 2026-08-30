@@ -1,9 +1,8 @@
 """
 Simple Sqlite3 Database Implementaton for Rule Engine
 """
-import re
 import os
-import sqlite3
+import re
 from io import StringIO
 from datetime import datetime
 from typing import List, Optional
@@ -11,20 +10,19 @@ from typing import List, Optional
 from . import RuleEngine, RStatus
 from .parser import RuleDefs, Domain, Regex, Wildcard, parse_rules
 from .wildcard import WildcardMatch
+from .._sql import ruleset_db
 
 #** Variables **#
-__all__ = ['SqliteRuleEngine']
-
-#: schema file location
-SCHEMA = os.path.join(os.path.dirname(__file__), '../_sql/ruleset.sql')
+__all__ = ['RuleEngineDB']
 
 #** Classes **#
 
-class SqliteRuleEngine(RuleEngine):
+class RuleEngineDB(RuleEngine):
     """
     Simple Sqlite3 Supported Rule Engine for RuleBackend
     """
-    __slots__ = ('conn', 'regex_allow', 'regex_block' 'wildcard_allow', 'wildcard_block')
+    __slots__ = ('conn',
+        'regex_allow', 'regex_block' 'wildcard_allow', 'wildcard_block')
 
     regex_allow:    List[re.Pattern]
     regex_block:    List[re.Pattern]
@@ -32,44 +30,43 @@ class SqliteRuleEngine(RuleEngine):
     wildcard_block: List[WildcardMatch]
 
     def __init__(self, path: str, sync: bool = True):
-        self.conn = sqlite3.connect(path, check_same_thread=False, autocommit=True)
-        self.conn.execute('PRAGMA journal_mode=WAL')
-        with open(SCHEMA, 'r') as f:
-            self.conn.executescript(f.read())
-        self.conn.autocommit = False
+        self.conn = ruleset_db(path)
         if sync is True:
             self.sync()
 
-    def _create_source(self, cur: sqlite3.Cursor, name: str,
+    def _create_source(self, name: str,
         path: Optional[str], date: Optional[datetime]) -> int:
         """
         create a new source record with a unique id
         """
         date = date or datetime.now()
-        cur.execute('SELECT MAX(SourceId)+1 FROM Sources')
-        (sid, ) = cur.fetchone()
-        sid     = sid or 1
-        sql = "INSERT INTO Sources VALUES (?, ?, ?, ?)"
-        cur.execute(sql, (sid, name, path, date.isoformat()))
+        rec  = self.conn.fetch_one('SELECT MAX(SourceId)+1 FROM Sources')
+        sid  = (rec[0] if rec else 1) or 1
+        sql  = 'INSERT INTO Sources VALUES (%s, %s, %s, %s)'
+        self.conn.execute(sql, (sid, name, path, date.isoformat()))
         return sid
 
-    def _update_source(self, cur: sqlite3.Cursor, sid: int) -> int:
+    def _update_source(self, sid: int) -> int:
         """
         update the last-updated datetime tracker for the specific source
         """
         sql = "UPDATE Sources SET LastUpdated=datetime('now') WHERE SourceId=?"
-        cur.execute(sql, (sid, ))
+        self.conn.execute(sql, (sid, ))
         return sid
 
-    def _delete_source(self, cur: sqlite3.Cursor, sid: int):
+    def _delete_source(self, sid: int):
         """
         delete all patterns and domains associated with a specific source
         """
-        cur.execute('DELETE FROM RegexPatterns WHERE SourceId=?', (sid, ))
-        cur.execute('DELETE FROM WildcardPatterns WHERE SourceId=?', (sid, ))
-        cur.execute('DELETE FROM Domains WHERE SourceId=?', (sid, ))
+        args = (sid, )
+        for stmt in (
+            'DELETE FROM RegexPatterns WHERE SourceId=?',
+            'DELETE FROM WildcardPatterns WHERE SourceId=?',
+            'DELETE FROM Domains WHERE SourceId=?',
+        ):
+            self.conn.execute(stmt, args)
 
-    def _ingest(self, cur: sqlite3.Cursor, sid: int, rules: RuleDefs):
+    def _ingest(self, sid: int, rules: RuleDefs):
         """
         add all of the given rules to the specified source
         """
@@ -78,30 +75,34 @@ class SqliteRuleEngine(RuleEngine):
         wildcards = []
         for rdef in rules:
             if isinstance(rdef.rule, Domain):
-                domains.append((sid, rdef.rule, rdef.status))
+                domains.append((sid, str(rdef.rule), rdef.status.value))
             elif isinstance(rdef.rule, Wildcard):
-                wildcards.append((sid, rdef.rule, rdef.status))
+                wildcards.append((sid, str(rdef.rule), rdef.status.value))
             elif isinstance(rdef.rule, Regex):
-                regex.append((sid, rdef.rule, rdef.status))
-        cur.executemany('INSERT INTO RegexPatterns VALUES (?, ?, ?)', regex)
-        cur.executemany('INSERT INTO WildcardPatterns VALUES (?, ?, ?)', wildcards)
-        cur.executemany('INSERT INTO Domains VALUES (?, ?, ?)', domains)
+                regex.append((sid, str(rdef.rule), rdef.status.value))
+        self.conn.execute_many(
+            'INSERT INTO RegexPatterns VALUES (%s, %s, %s)', regex)
+        self.conn.execute_many(
+            'INSERT INTO WildcardPatterns VALUES (%s, %s, %s)', wildcards)
+        self.conn.execute_many(
+            'INSERT INTO Domains VALUES (%s, %s, %s)', domains)
 
     def sync(self):
         """
         compile regex and wildcard expressions within database
         """
+        sql_regex    = 'SELECT Pattern,Rule FROM RegexPatterns'
+        sql_wildcard = 'SELECT Pattern,Rule FROM WildcardPatterns'
         self.regex_allow    = []
         self.regex_block    = []
         self.wildcard_allow = []
         self.wildcard_block = []
-        cur = self.conn.cursor()
-        for row in cur.execute('SELECT Pattern,Rule FROM RegexPatterns'):
+        for row in self.conn.fetch_yield(sql_regex):
             (pattern, status) = row
             store = self.regex_allow \
                 if status == RStatus.WHITELIST else self.regex_block
             store.append(re.compile(pattern))
-        for row in cur.execute('SELECT Pattern,Rule FROM WildcardPatterns'):
+        for row in self.conn.fetch_yield(sql_wildcard):
             (pattern, status) = row
             store = self.wildcard_allow \
                 if status == RStatus.WHITELIST else self.wildcard_block
@@ -115,16 +116,16 @@ class SqliteRuleEngine(RuleEngine):
         :param rules: rules to ingest
         :param sync:  sync database after ingestion
         """
-        cur = self.conn.cursor()
-        cur.execute('SELECT SourceId FROM Sources WHERE Name=?', (name, ))
-        rec = cur.fetchone()
-        sid = self._update_source(cur, rec[0]) \
+        rec = self.conn.fetch_one(
+            'SELECT SourceId FROM Sources WHERE Name=?', (name, ))
+        sid = self._update_source(rec[0]) \
             if rec is not None else \
-            self._create_source(cur, name, None, None)
+            self._create_source(name, None, None)
 
-        self._delete_source(cur, sid)
-        self._ingest(cur, sid, rules)
-        self.conn.commit()
+        with self.conn.transaction() as tr:
+            self._delete_source(sid)
+            self._ingest(sid, rules)
+            tr.commit()
         if sync:
             self.sync()
 
@@ -153,21 +154,21 @@ class SqliteRuleEngine(RuleEngine):
         name = name or os.path.basename(fpath)
         time = datetime.fromtimestamp(os.path.getmtime(fpath))
 
-        cur = self.conn.cursor()
         sql = 'SELECT SourceId,LastUpdated FROM Sources WHERE Path=?'
-        cur.execute(sql, (fpath, ))
-        rec = cur.fetchone()
+        rec = self.conn.fetch_one(sql, (fpath, ))
         if rec is not None and datetime.fromisoformat(rec[1]) == time:
             return False
 
-        sid = self._update_source(cur, rec[0]) \
-            if rec is not None else \
-            self._create_source(cur, name, fpath, time)
-        self._delete_source(cur, sid)
-        with open(fpath, 'r') as f:
-            rules = parse_rules(f)
-            self._ingest(cur, sid, rules)
-        self.conn.commit()
+        with self.conn.transaction() as tr:
+            sid = self._update_source(rec[0]) \
+                if rec is not None else \
+                self._create_source(name, fpath, time)
+            self._delete_source(sid)
+            with open(fpath, 'r') as f:
+                rules = parse_rules(f)
+                self._ingest(sid, rules)
+            tr.commit()
+
         if sync:
             self.sync()
         return True
@@ -176,14 +177,15 @@ class SqliteRuleEngine(RuleEngine):
         """
         count the number of blocked rule entries
         """
-        cur = self.conn.cursor()
-        cur.execute('SELECT COUNT(1) FROM RegexPatterns WHERE Rule=0')
-        (regex, ) = cur.fetchone()
-        cur.execute('SELECT COUNT(1) FROM WildcardPatterns WHERE Rule=0')
-        (wcards, ) = cur.fetchone()
-        cur.execute('SELECT COUNT(1) FROM Domains WHERE Rule=0')
-        (domains, ) = cur.fetchone()
-        return regex + wcards + domains
+        count = 0
+        for stmt in (
+            'SELECT COUNT(1) FROM RegexPatterns WHERE Rule=0',
+            'SELECT COUNT(1) FROM WildcardPatterns WHERE Rule=0',
+            'SELECT COUNT(1) FROM Domains WHERE Rule=0',
+        ):
+            rec    = self.conn.fetch_one(stmt)
+            count += rec[0] if rec else 0
+        return count
 
     def match_domain(self, domain: bytes) -> Optional[RStatus]:
         """
@@ -192,10 +194,8 @@ class SqliteRuleEngine(RuleEngine):
         :param domain: domain to check if in database
         :return:       rule determination (if found)
         """
-        cur = self.conn.cursor()
         sql = 'SELECT Rule FROM Domains WHERE Domain=? LIMIT 1'
-        cur.execute(sql, (domain.decode('latin1'), ))
-        rec = cur.fetchone()
+        rec = self.conn.fetch_one(sql, (domain.decode('latin1'), ))
         if rec is not None:
             (status, ) = rec
             return RStatus.WHITELIST if status else RStatus.BLACKLIST

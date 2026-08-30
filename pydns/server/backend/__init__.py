@@ -20,17 +20,17 @@ __all__ = [
 
     'Resolver',
     'ResolverCache',
-    'SqliteResolverCache',
+    'ResolverCacheDB',
 
     'RStatus',
     'BlockMode',
     'RuleEngine',
     'RuleBackend',
-    'SqliteRuleEngine',
+    'RuleEngineDB',
 
     'Stats',
     'StatStorage',
-    'SqliteStatStore',
+    'StatStoreDB',
     'StatBackend',
 ]
 
@@ -84,6 +84,6 @@ class Backend(Protocol):
 from .cache import Cache
 from .forwarder import Forwarder
 from .memory import MemoryBackend
-from .resolver import Resolver, ResolverCache, SqliteResolverCache
-from .ruleset import RStatus, BlockMode, RuleEngine, RuleBackend, SqliteRuleEngine
-from .stats import Stats, StatStorage, SqliteStatStore, StatBackend
+from .resolver import Resolver, ResolverCache, ResolverCacheDB
+from .ruleset import RStatus, BlockMode, RuleEngine, RuleBackend, RuleEngineDB
+from .stats import Stats, StatStorage, StatStoreDB, StatBackend

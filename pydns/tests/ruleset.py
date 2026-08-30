@@ -34,7 +34,7 @@ class RuleSetTests(TestCase):
     """
 
     def setUp(self):
-        self.engine = SqliteRuleEngine(':memory:')
+        self.engine = RuleEngineDB(':memory:')
         self.backend = RuleBackend(MemoryBackend(), engine=self.engine)
 
     def assertRule(self, rdef: RuleDef, rule: Rule, status: RStatus):

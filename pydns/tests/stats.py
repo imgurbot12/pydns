@@ -10,7 +10,7 @@ from pydns.server.backend.stats import date_now
 
 from .. import RType
 from ..server.backend import *
-from ..server.backend.stats.sqlite import round_date
+from ..server.backend.stats.database import round_date
 
 #** Variables **#
 __all__ = ['StatTests']
@@ -26,7 +26,7 @@ class StatTests(TestCase):
     """
 
     def setUp(self):
-        self.store   = SqliteStatStore(':memory:')
+        self.store   = StatStoreDB(':memory:')
         self.backend = StatBackend(MemoryBackend(), self.store)
 
     def simulate(self, hours: int = 24) -> List[Stats]:
@@ -42,7 +42,7 @@ class StatTests(TestCase):
 
             questions = random.randint(1, 10_000)
             blocked   = random.randint(1, questions)
-            authority = random.randint(1, questions - blocked)
+            authority = random.randint(1, max(questions - blocked, 1))
 
             rtypes:  Dict[RType, int] = {}
             sources: Dict[str, int]   = {}

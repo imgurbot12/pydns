@@ -138,7 +138,7 @@ class Resolver(Backend):
     ):
         self.backend = backend
         self.client  = client or UdpClient([])
-        self.cache   = cache or SqliteResolverCache('./rcache.db')
+        self.cache   = cache or ResolverCacheDB('./rcache.db')
         self.servers = root_servers
 
     def get_closest_ns(self, domain: bytes) -> bytes:
@@ -232,4 +232,4 @@ class Resolver(Backend):
         return Answers(r_answers or [], self.source)
 
 #** Init **#
-from .sqlite import SqliteResolverCache
+from .database import ResolverCacheDB

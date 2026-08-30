@@ -5,8 +5,8 @@ from typing import List, Optional, Type
 from unittest import TestCase
 
 from .. import A, NS, RType, Answer
-from ..content import Content, Unknown
-from ..server.backend.resolver import MemoryCache, Record, Resolver
+from ..content import Unknown
+from ..server.backend.resolver import Record, Resolver, ResolverCacheDB
 
 #** Variables **#
 __all__ = ['ResolverTests']
@@ -19,8 +19,11 @@ class ResolverTests(TestCase):
     """
 
     def setUp(self) -> None:
-        self.cache    = MemoryCache()
+        self.cache    = ResolverCacheDB('sqlite://:memory:')
         self.resolver = Resolver(cache=self.cache)
+
+    def tearDown(self) -> None:
+        self.resolver.client.pool.drain()
 
     def assertAnswers(self,
         answers: Optional[List[Answer]], rclass: Type):
