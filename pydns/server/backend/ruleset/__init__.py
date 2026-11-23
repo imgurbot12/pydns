@@ -48,15 +48,15 @@ class RStatus(int, Enum):
 
 class BlockMode(str, Enum):
     """
-    Block behavior for RuleEngine
+    Block behavior for Rule Engine
     """
 
     NODATA = 'nodata'
-    """return an empty success response with no records"""
+    """Return an empty success response with no records"""
     NULL = 'null'
-    """return localhost address (0.0.0.0 or ::) to prevent routing"""
+    """Return localhost address (0.0.0.0 or ::) to prevent routing"""
     NXDOMAIN = 'nxdomain'
-    """raise NXDOMAIN error indicating domain does not exist"""
+    """Raise NXDOMAIN error indicating domain does not exist"""
 
     def get_answers(self, domain: bytes, rtype: RType, source: str) -> Answers:
         """
@@ -133,12 +133,12 @@ class RuleBackend(Backend):
         self.blacklist -= self.whitelist
         self.blacklist_count  = len(self.blacklist)
 
-    def is_authority(self, domain: bytes) -> bool:
+    async def is_authority(self, domain: bytes) -> bool:
         """
         :param domain: check if domain is authority
         :return:       true if backend has authority over domain
         """
-        return self.backend.is_authority(domain)
+        return await self.backend.is_authority(domain)
 
     def is_blocked(self, domain: bytes) -> bool:
         """
@@ -176,7 +176,7 @@ class RuleBackend(Backend):
                 return False
         return False
 
-    def get_answers(self, domain: bytes, rtype: RType) -> Answers:
+    async def get_answers(self, domain: bytes, rtype: RType) -> Answers:
         """
         block lookups for blacklisted domains, otherwise do standard query
 
@@ -186,15 +186,15 @@ class RuleBackend(Backend):
         """
         if self.is_blocked(domain):
             return self.block_mode.get_answers(domain, rtype, self.source)
-        return self.backend.get_answers(domain, rtype)
+        return await self.backend.get_answers(domain, rtype)
 
-    def count_blocked(self) -> int:
+    async def count_blocked(self) -> int:
         """
         count number of blacklisted items in rule backend
         """
         blacklisted = self.engine.count_blocked() + self.blacklist_count \
             if self.engine is not None else len(self.blacklist)
-        return blacklisted + self.backend.count_blocked()
+        return blacklisted + await self.backend.count_blocked()
 
 #** Imports **#
 from .database import RuleEngineDB

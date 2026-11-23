@@ -5,6 +5,7 @@ import math
 import random
 from abc import abstractmethod
 from datetime import datetime, timedelta
+import socket
 from typing import (
     ClassVar, Dict, Generic, List, Optional, Protocol, TypeVar, Union, cast)
 
@@ -14,6 +15,8 @@ from .. import Answers, Backend
 from .... import A, AAAA, NS, Answer, Content, Question, RType
 from ....client import UdpClient, build_request
 from ....content import CNAME, Unknown
+from ....exceptions import DnsError
+from ....message import Message
 
 #** Variables **#
 __all__ = [
@@ -137,7 +140,7 @@ class Resolver(Backend):
         client:       Optional[UdpClient]     = None,
     ):
         self.backend = backend
-        self.client  = client or UdpClient([])
+        self.client  = client or UdpClient([], pool_size=0)
         self.cache   = cache or ResolverCacheDB('./rcache.db')
         self.servers = root_servers
 
@@ -190,6 +193,9 @@ class Resolver(Backend):
             now = datetime.now()
             return [r.to_answer(domain, now) for r in answers]
 
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.settimeout(5)
+
         names    = []
         server   = self.get_closest_ns(domain)
         question = Question(domain, rtype)
@@ -197,7 +203,10 @@ class Resolver(Backend):
         while True:
             host = self.get_host(server)
             addr = (host, 53)
-            res  = self.client.request(message, addr=addr)
+
+            sock.sendto(message.pack(), addr)
+            data, _ = sock.recvfrom(8192)
+            res     = Message.unpack(data, source=addr[0])
             res.raise_on_error()
 
             raw_answers = res.answers + res.authority + res.additional
@@ -208,7 +217,7 @@ class Resolver(Backend):
             servers = []
             for ans in filtered:
                 if ans.name == domain or any(a.name == domain for a in names):
-                    if ans.content.rtype == rtype:
+                    if ans.rtype == rtype:
                         valid.extend(names)
                         valid.append(ans)
                     if isinstance(ans.content, CNAME):
@@ -221,6 +230,14 @@ class Resolver(Backend):
             if not servers:
                 break
             server = random.choice(servers)
+
+        sock.close()
+        if names:
+            domain  = names[-1].content.name
+            records = self.resolve(domain, rtype)
+            if records is not None:
+                records.insert(0, names[-1])
+                return records
         return None
 
     def is_authority(self, domain: bytes) -> bool:
@@ -233,7 +250,10 @@ class Resolver(Backend):
             answers = self.backend.get_answers(domain, rtype)
             if answers.answers or answers.rcode is not None:
                 return answers
-        r_answers = self.resolve(domain, rtype)
+        try:
+            r_answers = self.resolve(domain, rtype)
+        except DnsError as err:
+            return Answers([], self.source, rcode=err.rcode)
         return Answers(r_answers or [], self.source)
 
 #** Init **#

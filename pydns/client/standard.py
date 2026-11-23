@@ -4,10 +4,10 @@ Standard UDP/TCP Client Implementations
 import random
 import socket
 from abc import ABC, abstractmethod
-from typing import List, Optional
+from typing import Generic, List, Optional, TypeVar
 
-from pypool import Pool
-from pyserve import RawAddr
+from pypool import AsyncPool
+from pyserve import RawAddr, TcpAsyncClient, UdpAsyncClient
 from pyderive import dataclass
 
 from . import BaseClient, Message
@@ -15,111 +15,106 @@ from . import BaseClient, Message
 #** Variables **#
 __all__ = ['UdpClient', 'TcpClient']
 
+P = TypeVar('P', bound=AsyncPool)
+
 #** Classes **#
 
-class SocketPool(Pool[socket.socket]):
-    pass
-
 @dataclass(slots=True)
-class Client(BaseClient, ABC):
+class Client(BaseClient, ABC, Generic[P]):
     """
-    Baseclass Socket-Based DNS Client Implementation
+    Base-class Socket-Based DNS Client Implementation
     """
     addresses:  List[RawAddr]
-    block_size: int           = 65535
+    block_size: int           = 8192
     pool_size:  Optional[int] = None
     expiration: Optional[int] = 15
     timeout:    int           = 10
 
     def __post_init__(self):
-        self.pool = SocketPool(
+        self.pool: AsyncPool[P] = AsyncPool(
             factory=self.newsock,
             cleanup=self.cleanup,
             max_size=self.pool_size,
             expiration=self.expiration)
 
     @abstractmethod
-    def newsock(self) -> socket.socket:
+    async def newsock(self) -> P:
         """
-        spawn new socket object to make request
-
-        :return: new socket object
+        Spawn new socket object to make request
         """
         raise NotImplementedError
 
     @abstractmethod
-    def cleanup(self, sock: socket.socket):
+    async def cleanup(self, client: P):
         """
-        close and clean an existing socket object
-
-        :param sock: socket object
+        Close and clean an existing socket object
         """
         raise NotImplementedError
 
     def pickaddr(self) -> RawAddr:
         """
-        pick random address from list of addresses
-
-        :return: random dns address to make request
+        Pick random address from list of addresses
         """
         return random.choice(self.addresses)
 
     def drain(self):
         """
-        drain socket pool
+        Drain socket pool
         """
         self.pool.drain()
 
-class UdpClient(Client):
+class UdpClient(Client[UdpAsyncClient]):
     """
     Simple UDP Socket DNS Client
     """
 
-    def newsock(self) -> socket.socket:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.settimeout(self.timeout)
-        return sock
+    async def newsock(self) -> UdpAsyncClient:
+        #NOTE: As of py3.14, using the DatagramProtocol over
+        # the new 'loop.sock_*' functions is a bazillion times
+        # faster at scale for some reason. It's night and day.
+        client = UdpAsyncClient(True)
+        client.socket.settimeout(self.timeout)
+        return client
 
-    def cleanup(self, sock: socket.socket):
-        sock.close()
+    async def cleanup(self, client: UdpAsyncClient):
+        client.close()
 
-    def request(self, msg: Message, addr: Optional[RawAddr] = None) -> Message:
-        with self.pool.reserve(discard_on=(socket.timeout, )) as sock:
+    async def request(self, msg: Message, addr: Optional[RawAddr] = None) -> Message:
+        async with self.pool.reserve(discard_on=(socket.timeout, )) as client:
             # send request
             addr = addr or self.pickaddr()
             data = msg.pack()
-            sock.sendto(data, addr)
+            await client.sendto(data, addr)
             # receive response
-            data, _ = sock.recvfrom(self.block_size)
+            data, _ = await client.recvfrom(self.block_size)
             return Message.unpack(data, source=addr[0])
 
-class TcpClient(Client):
+class TcpClient(Client[TcpAsyncClient]):
     """
     Simple TCP Socket DNS Client
     """
 
-    def newsock(self) -> socket.socket:
-        addr = self.pickaddr()
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(self.timeout)
-        sock.connect(addr)
-        return sock
+    async def newsock(self) -> TcpAsyncClient:
+        addr   = self.pickaddr()
+        client = TcpAsyncClient()
+        client.socket.settimeout(self.timeout)
+        await client.connect(addr)
+        return client
 
-    def cleanup(self, sock: socket.socket):
-        sock.shutdown(socket.SHUT_RDWR)
-        sock.close()
+    async def cleanup(self, client: TcpAsyncClient):
+        client.close()
 
-    def request(self, msg: Message) -> Message:
-        with self.pool.reserve(discard_on=(socket.timeout, )) as sock:
+    async def request(self, msg: Message) -> Message:
+        async with self.pool.reserve(discard_on=(socket.timeout, )) as client:
             # send request
             data = msg.pack()
             data = len(data).to_bytes(2, 'big') + data
-            sock.send(data)
-            # recieve size of response
-            sizeb = sock.recv(2)
+            await client.send(data)
+            # receive size of response
+            sizeb = await client.recv(2)
             size  = int.from_bytes(sizeb, 'big')
             # read data from size
-            data = sock.recv(size)
-            addr = sock.getpeername()
+            data = await client.recv(size)
+            addr = client.socket.getpeername()
             return Message.unpack(data, source=addr[0])
 

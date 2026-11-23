@@ -34,7 +34,7 @@ class CacheRecord:
 
     def __post_init__(self, expiration: int): #type: ignore
         """
-        calculate expiration-time and last-accessed time
+        Calculate expiration-time and last-accessed time
         """
         ttl = min(a.ttl for a in self.answers)
         ttl = min(ttl, expiration) if expiration else ttl
@@ -44,7 +44,7 @@ class CacheRecord:
 
     def is_expired(self) -> bool:
         """
-        calculate if expiration has passed or ttl is expired
+        Calculate if expiration has passed or TTL is expired
         """
         now = time.time()
         if self.expires <= now:
@@ -83,15 +83,15 @@ class Cache(Backend):
         self.logger              = self.logger.getChild('cache')
         self.recursion_available = self.backend.recursion_available
 
-    def is_authority(self, domain: bytes) -> bool:
+    async def is_authority(self, domain: bytes) -> bool:
         """
-        retrieve if domain is authority from cache before checking backend
+        Retrieve if domain is authority from cache before checking backend
         """
         # check cache before querying backend
         if domain in self.authorities:
             return self.authorities[domain]
         # query backend and then permanently cache authority result
-        authority = self.backend.is_authority(domain)
+        authority = await self.backend.is_authority(domain)
         with self.mutex:
             if len(self.authorities) >= self.maxsize:
                 self.authorities.clear()
@@ -100,7 +100,7 @@ class Cache(Backend):
 
     def get_cache(self, domain: bytes, rtype: RType) -> Optional[Answers]:
         """
-        retrieve from cache directly if present
+        Retrieve from cache directly if present
         """
         key = f'{domain!r}->{rtype.name}'
         with self.mutex:
@@ -115,7 +115,7 @@ class Cache(Backend):
 
     def set_cache(self, domain: bytes, rtype: RType, answers: Answers):
         """
-        save the given answers to cache for the specified domain/rtype
+        Save the given answers to cache for the specified domain/rtype
         """
         if not answers.answers:
             self.logger.debug(f'cannot cache empty record for {domain!r}')
@@ -127,16 +127,16 @@ class Cache(Backend):
                 self.cache.clear()
             self.cache[key] = CacheRecord(answers.answers.copy(), self.expiration)
 
-    def get_answers(self, domain: bytes, rtype: RType) -> Answers:
+    async def get_answers(self, domain: bytes, rtype: RType) -> Answers:
         """
-        retrieve answers from cache before checking supplied backend
+        Retrieve answers from cache before checking supplied backend
         """
         # attempt to retrieve from cache if it exists
         answers = self.get_cache(domain, rtype)
         if answers is not None:
             return answers
         # complete standard lookup for answers
-        answers = self.backend.get_answers(domain, rtype)
+        answers = await self.backend.get_answers(domain, rtype)
         if answers.source in self.ignore_sources:
             return answers
         if rtype not in self.ignore_rtypes \

@@ -13,7 +13,7 @@ from ...content import Content, PTR
 #** Variables **#
 __all__ = ['MemoryBackend']
 
-#: type definiton for in-memory record database
+#: type definition for in-memory record database
 RecordDB = Dict[bytes, Dict[RType, List[Answer]]]
 
 RecordEntries = List[Union[Content, 'RecordDict']]
@@ -43,7 +43,7 @@ class MemoryBackend(Backend):
 
     def add_answer(self, domain: bytes, answer: Answer):
         """
-        add additional domain answer into in-memory db
+        Add additional domain answer into in-memory db
         """
         rtype = answer.rtype
         self.records.setdefault(domain, {})
@@ -53,7 +53,7 @@ class MemoryBackend(Backend):
 
     def save_domain(self, domain: bytes, records: RecordEntries):
         """
-        save additional records into in-memory db
+        Save additional records into in-memory db
 
         :param domain:  dns domain to save records for
         :param records: list of record objects with ttls
@@ -82,7 +82,7 @@ class MemoryBackend(Backend):
 
     def save_domain_dict(self, domain: bytes, entries: RawRecordEntries):
         """
-        save additional records into in-memory db using raw dictionary object
+        Save additional records into in-memory db using raw dictionary object
 
         :param domain:  dns domain to save records for
         :param records: list of record objects with ttls
@@ -97,15 +97,15 @@ class MemoryBackend(Backend):
                 records.append(RecordDict(ttl=ttl, content=content))
         self.save_domain(domain, records)
 
-    def is_authority(self, domain: bytes) -> bool:
+    async def is_authority(self, domain: bytes) -> bool:
         """
-        retrieve if domain is an authority
+        Retrieve if domain is an authority
         """
         return domain in self.authorities
 
-    def get_answers(self, domain: bytes, rtype: RType) -> Answers:
+    async def get_answers(self, domain: bytes, rtype: RType) -> Answers:
         """
-        retrieve records associated w/ the given domain and record-type
+        Retrieve records associated with the given domain and record-type
         """
         answers = []
         if domain in self.records:

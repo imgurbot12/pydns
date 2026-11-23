@@ -47,24 +47,24 @@ def build_request(*questions: Question) -> Message:
 class BaseClient(Protocol):
 
     @abstractmethod
-    def request(self, msg: Message) -> Message:
+    async def request(self, msg: Message) -> Message:
         """
-        send request and proces recieved response
+        Send request and proces recieved response
 
         :param msg: dns request  message
         :return:    dns response message
         """
         raise NotImplementedError
 
-    def query(self, *questions: Question) -> Message:
+    async def query(self, *questions: Question) -> Message:
         """
-        build request message from query and return response
+        Build request message from query and return response
 
         :param questions: dns queries
         :return:          response message to query
         """
         message = build_request(*questions)
-        return self.request(message)
+        return await self.request(message)
 
 #** Imports **#
 from .https import HttpsClient

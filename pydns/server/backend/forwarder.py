@@ -17,7 +17,7 @@ __all__ = ['Forwarder']
 @dataclass(slots=True, repr=False)
 class Forwarder(Backend):
     """
-    Recursive Dns-Client Lookup Forwarder when Backend returns no Results
+    Recursive DNS-Client Lookup Forwarder when Backend returns no Results
     """
     source: ClassVar[str] = 'Forwarder'
     recursion_available: ClassVar[bool] = True #type: ignore
@@ -25,16 +25,16 @@ class Forwarder(Backend):
     backend: Backend
     client:  BaseClient
 
-    def is_authority(self, domain: bytes) -> bool:
-        return self.backend.is_authority(domain)
+    async def is_authority(self, domain: bytes) -> bool:
+        return await self.backend.is_authority(domain)
 
-    def get_answers(self, domain: bytes, rtype: RType) -> Answers:
+    async def get_answers(self, domain: bytes, rtype: RType) -> Answers:
         """
-        query for answers w/ client if base-backend returns empty result
+        Query for answers with client if base-backend returns empty result
         """
-        answers = self.backend.get_answers(domain, rtype)
+        answers = await self.backend.get_answers(domain, rtype)
         if not answers.answers and answers.rcode is None:
-            message = self.client.query(Question(domain, rtype))
+            message = await self.client.query(Question(domain, rtype))
             answers.source = self.source
             answers.answers.extend(message.answers)
             answers.answers.extend(message.authority)

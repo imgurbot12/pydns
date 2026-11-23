@@ -4,6 +4,7 @@ Web HTTPS Based DNS Client
 from urllib.request import Request, urlopen
 from typing import Optional
 
+from httpx import AsyncClient
 from pyderive import dataclass
 
 from . import BaseClient, Message
@@ -22,24 +23,23 @@ class HttpsClient(BaseClient):
     timeout: Optional[int] = None
 
     def __post_init__(self):
-        self.headers = {
-            'User-Agent':   'PyDNS/0.0.1',
-            'Accept':       'application/dns-message',
-            'Content-Type': 'application/dns-message'
-        }
+        self.client = AsyncClient(
+            timeout=self.timeout,
+            headers={
+                'User-Agent':   'PyDNS/0.0.1',
+                'Accept':       'application/dns-message',
+                'Content-Type': 'application/dns-message'
+            },
+        )
 
-    def request(self, msg: Message) -> Message:
+    async def request(self, msg: Message) -> Message:
         """
-        handle https specific dns request
-
-        :param msg: request message
-        :return:    response message
+        Handle HTTPS specific DNS request
         """
         data    = msg.pack()
-        req     = Request(self.url, data=data, headers=self.headers)
-        res     = urlopen(req, timeout=self.timeout)
-        content = res.read()
-        if res.status != 200:
-            raise RuntimeError(f'Invalid Response: {res.status} {content}')
+        res     = await self.client.post(self.url, content=data)
+        content = await res.aread()
+        if res.status_code != 200:
+            raise RuntimeError(f'Invalid Response: {res.status_code} {content}')
         return Message.unpack(content, source=self.url)
 

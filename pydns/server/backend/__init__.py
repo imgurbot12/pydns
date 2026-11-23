@@ -55,29 +55,29 @@ class Backend(Protocol):
     recursion_available: bool = False
 
     @abstractmethod
-    def is_authority(self, domain: bytes) -> bool:
+    async def is_authority(self, domain: bytes) -> bool:
         """
-        determine if this backend is an authority on a given domain
+        Determine if this backend is an authority on a given domain
         """
         raise NotImplementedError
 
     @abstractmethod
-    def get_answers(self, domain: bytes, rtype: RType) -> Answers:
+    async def get_answers(self, domain: bytes, rtype: RType) -> Answers:
         """
-        retrieve answers associated with the given domain and record type
+        Retrieve answers associated with the given domain and record type
 
         :param domain: domain being requested
         :param rtype:  record type being requested
         """
         raise NotImplementedError
 
-    def count_blocked(self) -> int:
+    async def count_blocked(self) -> int:
         """
-        optional backend function to count unique blocked entries
+        Optional backend function to count unique blocked entries
         """
         backend = getattr(self, 'backend', None)
         if backend is not None and isinstance(backend, Backend):
-            return backend.count_blocked()
+            return await backend.count_blocked()
         return 0
 
 #** Imports **#

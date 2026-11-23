@@ -6,7 +6,7 @@ from logging import Logger, getLogger
 from typing import Optional
 
 from pyserve import Address, Writer
-from pyserve import Session as BaseSession
+from pyserve import AsyncSession
 from pyderive import dataclass, field
 
 from .backend import Backend
@@ -28,7 +28,7 @@ class Mode(IntEnum):
     THREADED_ASYNC = 4
 
 @dataclass
-class Server(BaseSession):
+class Server(AsyncSession):
     """
     Extendable Implementation of DNS Server Session Manager for PyServe
     """
@@ -37,20 +37,20 @@ class Server(BaseSession):
 
     ### DNS Handlers
 
-    def process_query(self, msg: Message):
+    async def process_query(self, msg: Message):
         """
-        process questions in query message and append answers found
+        Process DNS query request
         """
         # process questions include in message
         for q in msg.questions:
             # check if server is authority on domain and retrieve basic answers
-            is_authority = self.backend.is_authority(q.name)
+            is_authority = await self.backend.is_authority(q.name)
             msg.flags.authorative = msg.flags.authorative or is_authority
-            answers = self.backend.get_answers(q.name, q.qtype)
-            # include SOA if authorative and not already included
+            answers = await self.backend.get_answers(q.name, q.qtype)
+            # include SOA if authoritative and not already included
             if is_authority and q.qtype != RType.SOA and \
                 not any(a.name == q.name for a in msg.authority):
-                more = self.backend.get_answers(q.name, RType.SOA)
+                more = await self.backend.get_answers(q.name, RType.SOA)
                 answers.answers = [*answers.answers, *more.answers]
             # report and assign answers
             code = f' code={answers.rcode.name}' if answers.rcode else ''
@@ -67,38 +67,38 @@ class Server(BaseSession):
                 msg.flags.rcode = answers.rcode
                 break
 
-    def process_status(self, msg: Message):
+    async def process_status(self, msg: Message):
         """
-        process dns status request
-        """
-        raise NotImplemented
-
-    def process_notify(self, msg: Message):
-        """
-        process dns notify request
+        Process DNS status request
         """
         raise NotImplemented
 
-    def process_update(self, msg: Message):
+    async def process_notify(self, msg: Message):
         """
-        process dns update request
+        Process DNS notify request
+        """
+        raise NotImplemented
+
+    async def process_update(self, msg: Message):
+        """
+        Process DNS update request
         """
         raise NotImplemented
 
     ### Standard Handlers
 
-    def connection_made(self, addr: Address, writer: Writer):
+    async def connection_made(self, addr: Address, writer: Writer):
         """
-        handle session initialization on connection-made
+        Handle session initialization on connection-made
         """
         self.addr     = addr
         self.writer   = writer
         self.addr_str = '%s:%d' % self.addr
         self.logger.debug(f'{self.addr_str} | connection-made')
 
-    def data_received(self, data: bytes):
+    async def data_received(self, data: bytes):
         """
-        parse raw packet-data and process request
+        Parse raw packet-data and process request
         """
         self.logger.debug(f'{self.addr_str} | recieved {len(data)} bytes')
         msg = Message.unpack(data)
@@ -115,13 +115,13 @@ class Server(BaseSession):
                 msg.additional.append(EdnsAnswer())
             # reject request if not a query
             if msg.flags.op in (OpCode.Query, OpCode.InverseQuery):
-                self.process_query(msg)
+                await self.process_query(msg)
             elif msg.flags.op == OpCode.Status:
-                self.process_status(msg)
+                await self.process_status(msg)
             elif msg.flags.op == OpCode.Notify:
-                self.process_notify(msg)
+                await self.process_notify(msg)
             elif msg.flags.op == OpCode.Update:
-                self.process_update(msg)
+                await self.process_update(msg)
             else:
                 raise NotImplementedError(f'Unsupported OpCode: {msg.flags.op}')
         except DnsError as e:
@@ -136,7 +136,7 @@ class Server(BaseSession):
             self.logger.debug(f'{self.addr_str} | sent {len(data)} bytes')
             self.writer.write(data)
 
-    def connection_lost(self, err: Optional[Exception]):
+    async def connection_lost(self, err: Optional[Exception]):
         """
         debug log connection lost
         """
