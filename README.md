@@ -49,9 +49,10 @@ print(res)
 Simple Server
 
 ```python
+import asyncio
 import logging
 
-from pyserve import listen_udp_threaded
+from pyserve import listen_udp_async
 
 from pydns.client import UdpClient
 from pydns.server import Server
@@ -90,5 +91,5 @@ logger = logging.getLogger('myserver')
 logger.setLevel(logging.INFO)
 
 # launch server and run forever using pyserve
-listen_udp_threaded(server_addr, Server, backend=backend, logger=logger)
+asyncio.run(listen_udp_async(server_addr, Server, args=(backend, logger)))
 ```
