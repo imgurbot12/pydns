@@ -2,10 +2,10 @@
 DNS Answer RR Content Definitions
 """
 from functools import lru_cache
-from typing import ClassVar, Optional, Type
+from typing import ClassVar, List, Optional, Type
 from typing_extensions import Annotated, Self
 
-from pystructs import U16, U32, Context, Domain, HintedBytes, IPv4, IPv6, Struct
+from pystructs import U8, U16, U32, Context, Domain, GreedyList, HintedBytes, IPv4, IPv6, Struct
 
 from . enum import RType
 
@@ -94,7 +94,7 @@ class TXT(Content):
     TXT RR - Text Record (Arbitrary Text Blob over DNS)
     """
     rtype: ClassVar[RType] = RType.TXT
-    text:  Annotated[bytes, HintedBytes(U32)]
+    text:  Annotated[List[bytes], GreedyList(HintedBytes(U8))]
 
 class A(Content):
     """

@@ -117,7 +117,7 @@ class Answer(BaseAnswer):
         header  = AnswerHeader.unpack(raw, ctx)
         size    = int.from_bytes(ctx.slice(raw, 2), 'big')
         ctype   = get_ctype(header.rtype, size)
-        content = ctype.unpack(raw, ctx)
+        content = ctype.unpack(raw[:ctx.index+size], ctx)
         return cls(header.name, header.ttl, content, header.rclass)
 
 @dataclass(slots=True)
