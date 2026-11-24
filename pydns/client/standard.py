@@ -13,9 +13,31 @@ from pyderive import dataclass
 from . import BaseClient, Message
 
 #** Variables **#
-__all__ = ['UdpClient', 'TcpClient']
+__all__ = ['UdpClient', 'TcpClient', 'HybridClient']
 
 P = TypeVar('P', bound=Union[TcpAsyncClient, UdpAsyncClient])
+
+#** Functions **#
+
+async def tcp_request(
+    client: TcpAsyncClient,
+    req:    Message,
+    raddr:  Optional[RawAddr] = None
+) -> Message:
+    """
+    Send DNS request using async TCP client
+    """
+    # send request
+    data = req.pack()
+    data = len(data).to_bytes(2, 'big') + data
+    await client.send(data)
+    # receive size of response
+    sizeb = await client.recv(2)
+    size  = int.from_bytes(sizeb, 'big')
+    # read data from size
+    data = await client.recv(size)
+    addr = raddr or client.socket.getpeername()
+    return Message.unpack(data, source=addr[0])
 
 #** Classes **#
 
@@ -99,15 +121,18 @@ class TcpClient(Client[TcpAsyncClient]):
     async def request(self, msg: Message) -> Message:
         async with self.pool.reserve(
             discard_on=(asyncio.TimeoutError, BrokenPipeError)) as client:
-            # send request
-            data = msg.pack()
-            data = len(data).to_bytes(2, 'big') + data
-            await client.send(data)
-            # receive size of response
-            sizeb = await client.recv(2)
-            size  = int.from_bytes(sizeb, 'big')
-            # read data from size
-            data = await client.recv(size)
-            addr = client.socket.getpeername()
-            return Message.unpack(data, source=addr[0])
+            return await tcp_request(client, msg)
 
+class HybridClient(UdpClient):
+    """
+    UDP Client with TCP Fallback on Timeout
+    """
+
+    async def request(self, msg: Message, addr: Optional[RawAddr] = None) -> Message:
+        addr = addr or self.pickaddr()
+        try:
+            return await super().request(msg, addr)
+        except asyncio.TimeoutError:
+            async with TcpAsyncClient(self.timeout) as client:
+                await client.connect(addr)
+                return await tcp_request(client, msg, addr)

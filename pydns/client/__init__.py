@@ -18,6 +18,7 @@ __all__ = [
     'BaseClient',
     'UdpClient',
     'TcpClient',
+    'HybridClient',
     'HttpsClient'
 ]
 
@@ -68,4 +69,4 @@ class BaseClient(Protocol):
 
 #** Imports **#
 from .https import HttpsClient
-from .standard import UdpClient, TcpClient
+from .standard import UdpClient, TcpClient, HybridClient
