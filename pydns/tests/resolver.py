@@ -24,8 +24,8 @@ class ResolverTests(IsolatedAsyncioTestCase):
 
     async def asyncTearDown(self) -> None:
         await self.resolver.client.pool.drain()
-        if self.cache._conn is not None:
-            await self.cache._conn.disconnect()
+        if self.cache.conn is not None:
+            await self.cache.conn.disconnect()
 
     def assertAnswers(self,
         answers: Optional[List[Answer]], rclass: Type):

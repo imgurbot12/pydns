@@ -10,7 +10,7 @@ from typing import List, Optional
 from . import RuleEngine, RStatus
 from .parser import RuleDefs, Domain, Regex, Wildcard, parse_rules
 from .wildcard import WildcardMatch
-from .._sql import Connection, Database, ruleset_db
+from .._sql import Connection, ruleset_db
 
 #** Variables **#
 __all__ = ['RuleEngineDB']
@@ -21,7 +21,7 @@ class RuleEngineDB(RuleEngine):
     """
     Simple SQLite Supported Rule Engine for RuleBackend
     """
-    __slots__ = ('_conn', '_path', '_sync',
+    __slots__ = ('conn', 'acon',
         'regex_allow', 'regex_block' 'wildcard_allow', 'wildcard_block')
 
     regex_allow:    List[re.Pattern]
@@ -30,19 +30,10 @@ class RuleEngineDB(RuleEngine):
     wildcard_block: List[WildcardMatch]
 
     def __init__(self, path: str, sync: bool = True):
-        self._conn = None
-        self._path = path
-        self._sync = sync
-
-    async def conn(self) -> Database:
-        """
-        Retrieve SQLite Database Connection
-        """
-        if self._conn is None:
-            self._conn = await ruleset_db(self._path)
-            if self._sync:
-                await self.sync()
-        return self._conn
+        self.conn = ruleset_db(path)
+        self.acon = self.conn.to_async()
+        if sync:
+            self.sync()
 
     def _create_source(self, conn: Connection, name: str,
         path: Optional[str], date: Optional[datetime]) -> int:
@@ -97,29 +88,28 @@ class RuleEngineDB(RuleEngine):
         conn.execute_many(
             'INSERT INTO Domains VALUES (?, ?, ?)', domains)
 
-    async def sync(self):
+    def sync(self):
         """
         Compile regex and wildcard expressions within database
         """
-        conn         = await self.conn()
         sql_regex    = 'SELECT Pattern,Rule FROM RegexPatterns'
         sql_wildcard = 'SELECT Pattern,Rule FROM WildcardPatterns'
         self.regex_allow    = []
         self.regex_block    = []
         self.wildcard_allow = []
         self.wildcard_block = []
-        for row in await conn.fetch_all(sql_regex):
+        for row in self.conn.fetch_all(sql_regex):
             (pattern, status) = row
             store = self.regex_allow \
                 if status == RStatus.WHITELIST else self.regex_block
             store.append(re.compile(pattern))
-        for row in await conn.fetch_all(sql_wildcard):
+        for row in self.conn.fetch_all(sql_wildcard):
             (pattern, status) = row
             store = self.wildcard_allow \
                 if status == RStatus.WHITELIST else self.wildcard_block
             store.append(WildcardMatch.compile(pattern))
 
-    async def ingest(self, name: str, rules: RuleDefs, sync: bool = True):
+    def ingest(self, name: str, rules: RuleDefs, sync: bool = True):
         """
         Ingest incoming source of rule definitions and update database
 
@@ -127,21 +117,20 @@ class RuleEngineDB(RuleEngine):
         :param rules: rules to ingest
         :param sync:  sync database after ingestion
         """
-        conn = await self.conn()
-        rec  = await conn.fetch_one(
+        rec = self.conn.fetch_one(
             'SELECT SourceId FROM Sources WHERE Name=?', (name, ))
-        def tx(conn, tx):
+        with self.conn.connection() as conn:
             sid = self._update_source(conn, rec[0]) \
                 if rec is not None else \
                 self._create_source(conn, name, None, None)
-            self._delete_source(conn, sid)
-            self._ingest(conn, sid, rules)
-            tx.commit()
-        await conn.transaction(tx)
+            with self.conn.transaction() as tx:
+                self._delete_source(conn, sid)
+                self._ingest(conn, sid, rules)
+                tx.commit()
         if sync:
-            await self.sync()
+            self.sync()
 
-    async def ingest_string(self, name: str, rules: str, sync: bool = True):
+    def ingest_string(self, name: str, rules: str, sync: bool = True):
         """
         Parse and ingest rule-set from string
 
@@ -151,9 +140,9 @@ class RuleEngineDB(RuleEngine):
         """
         s    = StringIO(rules)
         rgen = parse_rules(s)
-        await self.ingest(name, rgen, sync)
+        self.ingest(name, rgen, sync)
 
-    async def ingest_file(self,
+    def ingest_file(self,
         fpath: str, name: Optional[str] = None, sync: bool = True) -> bool:
         """
         Parse and ingest rule-set from the specified filepath
@@ -165,26 +154,23 @@ class RuleEngineDB(RuleEngine):
         """
         name = name or os.path.basename(fpath)
         time = datetime.fromtimestamp(os.path.getmtime(fpath))
-        conn = await self.conn()
 
         sql = 'SELECT SourceId,LastUpdated FROM Sources WHERE Path=?'
-        rec = await conn.fetch_one(sql, (fpath, ))
+        rec = self.conn.fetch_one(sql, (fpath, ))
         if rec is not None and datetime.fromisoformat(rec[1]) == time:
             return False
-
-        def tx(conn, tx):
+        with self.conn.connection() as conn:
             sid = self._update_source(conn, rec[0]) \
                 if rec is not None else \
                 self._create_source(conn, name, fpath, time)
-            self._delete_source(conn, sid)
-            with open(fpath, 'r') as f:
-                rules = parse_rules(f)
-                self._ingest(conn, sid, rules)
-            tx.commit()
-
-        await conn.transaction(tx)
+            with self.conn.transaction() as tx:
+                self._delete_source(conn, sid)
+                with open(fpath, 'r') as f:
+                    rules = parse_rules(f)
+                    self._ingest(conn, sid, rules)
+                tx.commit()
         if sync:
-            await self.sync()
+            self.sync()
         return True
 
     async def count_blocked(self) -> int:
@@ -192,13 +178,12 @@ class RuleEngineDB(RuleEngine):
         Count the number of blocked rule entries
         """
         count = 0
-        conn  = await self.conn()
         for stmt in (
             'SELECT COUNT(1) FROM RegexPatterns WHERE Rule=0',
             'SELECT COUNT(1) FROM WildcardPatterns WHERE Rule=0',
             'SELECT COUNT(1) FROM Domains WHERE Rule=0',
         ):
-            rec    = await conn.fetch_one(stmt)
+            rec    = await self.acon.fetch_one(stmt)
             count += rec[0] if rec else 0
         return count
 
@@ -206,9 +191,8 @@ class RuleEngineDB(RuleEngine):
         """
         Match domain against database of rules
         """
-        conn = await self.conn()
         sql  = 'SELECT Rule FROM Domains WHERE Domain=? LIMIT 1'
-        rec  = await conn.fetch_one(sql, (domain.decode('latin1'), ))
+        rec  = await self.acon.fetch_one(sql, (domain.decode('latin1'), ))
         if rec is not None:
             (status, ) = rec
             return RStatus.WHITELIST if status else RStatus.BLACKLIST

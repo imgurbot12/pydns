@@ -84,8 +84,8 @@ class RuleSetTests(IsolatedAsyncioTestCase):
             f.write(RULE_LIST.encode())
             f.flush()
             f.seek(0, 0)
-            self.assertTrue(await self.engine.ingest_file(f.name, 'test'))
-            self.assertFalse(await self.engine.ingest_file(f.name, 'test'))
+            self.assertTrue(self.engine.ingest_file(f.name, 'test'))
+            self.assertFalse(self.engine.ingest_file(f.name, 'test'))
         await self.assertDomain(b'example.com', RStatus.BLACKLIST)
         await self.assertDomain(b'allowed.example.com', RStatus.WHITELIST)
         await self.assertDomain(b'middle.allowed.foo.com', RStatus.WHITELIST)
@@ -102,7 +102,7 @@ class RuleSetTests(IsolatedAsyncioTestCase):
         """
         Ensure backend produces the correct answers
         """
-        await self.engine.ingest_string('test', RULE_LIST)
+        self.engine.ingest_string('test', RULE_LIST)
         answers = await self.backend.get_answers(b'allowed.example.com', RType.A)
         self.assertListEqual([], answers.answers)
         self.assertEqual('MemDB', answers.source)

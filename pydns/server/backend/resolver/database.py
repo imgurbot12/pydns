@@ -59,32 +59,22 @@ class Decoder(TypeDecoder):
 class ResolverCacheDB(ResolverCache):
     """
     """
-    __slots__ = ('_conn', '_path')
+    __slots__ = ('conn', )
 
     def __init__(self, path: str):
-        self._conn = None
-        self._path = path
-
-    async def conn(self) -> Database:
-        """
-        Retrieve SQLite Database Connection
-        """
-        if self._conn is None:
-            self._conn = await resolver_db(self._path)
-        return self._conn
+        self.conn = resolver_db(path).to_async()
 
     async def _domain_id(self, domain: bytes) -> int:
         """
         """
         dom  = domain.decode('latin1')
         sql  = 'SELECT DomainId FROM Domains WHERE Domain=?'
-        conn = await self.conn()
-        rec  = await conn.fetch_one(sql, (domain, ))
+        rec  = await self.conn.fetch_one(sql, (domain, ))
         if rec is not None:
             return rec[0]
-        rec = await conn.fetch_one('SELECT MAX(DomainId)+1 FROM Domains')
+        rec = await self.conn.fetch_one('SELECT MAX(DomainId)+1 FROM Domains')
         did = (rec[0] if rec else 1) or 1
-        await conn.execute('INSERT INTO Domains VALUES (?, ?)', (did, dom))
+        await self.conn.execute('INSERT INTO Domains VALUES (?, ?)', (did, dom))
         return did
 
     async def get(self, domain: bytes, rtype: RType) -> Optional[List[Record]]:
@@ -92,10 +82,9 @@ class ResolverCacheDB(ResolverCache):
         now  = datetime.now()
         did  = await self._domain_id(domain)
         sql  = 'SELECT Content,Expiration FROM Records WHERE DomainId=? AND RType=?'
-        conn = await self.conn()
         records = []
         expired = 0
-        for row in await conn.fetch_all(sql, (did, rtype.name)):
+        for row in await self.conn.fetch_all(sql, (did, rtype.name)):
             (content, expiration) = row
             content    = des_content(cclass, content)
             expiration = datetime.fromisoformat(expiration)
@@ -105,18 +94,17 @@ class ResolverCacheDB(ResolverCache):
             records.append(Record(content, expiration))
         if expired:
             sql = 'DELETE FROM Records WHERE Expiration<=?'
-            await conn.execute(sql, (now.isoformat(), ))
+            await self.conn.execute(sql, (now.isoformat(), ))
         return records if records else None
 
     async def put(self, domain: bytes, rtype: RType, records: List[Record]):
         did    = await self._domain_id(domain)
         values = []
         args   = []
-        conn   = await self.conn()
         for record in records:
             values.append(f'(?, ?, ?, ?)')
             content    = ser_content(record)
             expiration = record.expiration.isoformat()
             args.extend([did, rtype.name, content, expiration])
         sql = 'INSERT INTO Records VALUES ' + ','.join(values)
-        await conn.execute(sql, args)
+        await self.conn.execute(sql, args)

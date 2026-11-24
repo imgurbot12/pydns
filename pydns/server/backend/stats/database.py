@@ -27,19 +27,10 @@ class StatStoreDB(StatStorage):
     """
     SQLite Statistics Storage Implementation
     """
-    __slots__ = ('_conn', '_path')
+    __slots__ = ('conn', )
 
     def __init__(self, path: str):
-        self._conn = None
-        self._path = path
-
-    async def conn(self) -> Database:
-        """
-        Retrieve SQLite Database Connection
-        """
-        if self._conn is None:
-            self._conn = await stats_db(self._path)
-        return self._conn
+        self.conn = stats_db(path).to_async()
 
     async def stats(self, span: timedelta = timedelta(hours=24)) -> List[Stats]:
         """
@@ -49,9 +40,8 @@ class StatStoreDB(StatStorage):
         then:  datetime = now - span
         stats: Dict[datetime, Stats] = {}
 
-        sql  = 'SELECT * FROM Stats WHERE Date>=?'
-        conn = await self.conn()
-        for row in await conn.fetch_all(sql, (then.isoformat(), )):
+        sql = 'SELECT * FROM Stats WHERE Date>=?'
+        for row in await self.conn.fetch_all(sql, (then.isoformat(), )):
             (s_date, authority, blocked, questions) = row
             date = datetime.fromisoformat(s_date)
             if date not in stats:
@@ -63,12 +53,12 @@ class StatStoreDB(StatStorage):
             stat.with_authority  += authority
 
             sql = 'SELECT RType,Count FROM Questions WHERE Date=?'
-            for (rtype, count) in await conn.fetch_all(sql, (s_date, )):
+            for (rtype, count) in await self.conn.fetch_all(sql, (s_date, )):
                 rtype = RType[rtype]
                 stat.query_counts.setdefault(rtype, 0)
                 stat.query_counts[rtype] += count
             sql = 'SELECT Source,Count FROM Sources WHERE Date=?'
-            for (source, count) in await conn.fetch_all(sql, (s_date, )):
+            for (source, count) in await self.conn.fetch_all(sql, (s_date, )):
                 stat.query_sources.setdefault(source, 0)
                 stat.query_sources[source] += count
 
@@ -89,11 +79,10 @@ class StatStoreDB(StatStorage):
         """
         date  = (now or date_now()).isoformat()
         sql   = f'UPDATE Stats SET {field}={field}+? WHERE Date=?'
-        conn  = await self.conn()
-        if await conn.execute(sql, (count, date)) < 1:
+        if await self.conn.execute(sql, (count, date)) < 1:
             insert = 'INSERT INTO Stats VALUES (?, 0, 0, 0)'
-            await conn.execute(insert, (date, ))
-            await conn.execute(sql, (count, date))
+            await self.conn.execute(insert, (date, ))
+            await self.conn.execute(sql, (count, date))
 
     async def _upsert2(self, now: Optional[datetime],
         table: str, field: str, value: str, count: int):
@@ -102,10 +91,9 @@ class StatStoreDB(StatStorage):
         """
         date = (now or date_now()).isoformat()
         sql  = f'UPDATE {table} SET Count=Count+? WHERE Date=? AND {field}=?'
-        conn = await self.conn()
-        if await conn.execute(sql, (count, date, value)) < 1:
+        if await self.conn.execute(sql, (count, date, value)) < 1:
             sql = f'INSERT INTO {table} VALUES (?, ?, ?)'
-            await conn.execute(sql, (date, value, count))
+            await self.conn.execute(sql, (date, value, count))
 
     async def count_authority(self, count: int = 1, now: Optional[datetime] = None):
         now = round_date(now) if now else None
