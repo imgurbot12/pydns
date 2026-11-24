@@ -4,26 +4,22 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pydns3"
-version = "0.0.10"
+version = "0.0.11"
 requires-python = ">=3.8"
 dependencies = [
     'anysql>=0.0.5',
-    'pypool3>=0.0.3',
+    'pypool3>=0.0.5',
     'pyderive3>=0.0.7',
     'pystructs3>=0.0.8',
-    'pyserve3>=0.0.7',
+    'pyserve3>=0.0.8',
     'typing_extensions>=4.7.1',
 ]
-authors = [
-    {name = "Andrew C Scott", email = "imgurbot12@gmail.com"},
-]
+authors = [{name = "Andrew C Scott", email = "imgurbot12@gmail.com"}]
 description = "Simple Python DNS Library. DNS Packet-Parsing/Client/Server"
 readme = {file = "README.md", content-type = "text/markdown"}
-license = { file = 'LICENSE' }
 keywords = ["dns", "client", "server", "parser"]
 classifiers = [
     "Typing :: Typed",
-    "License :: OSI Approved :: MIT License",
     "Intended Audience :: Developers",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
@@ -33,7 +29,9 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13"
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15"
 ]
 
 [project.urls]
