@@ -1,5 +1,5 @@
 """
-Simple Sqlite3 Database Implementaton for Rule Engine
+Simple Sqlite3 Database Implementation for Rule Engine
 """
 import os
 import re
@@ -10,7 +10,7 @@ from typing import List, Optional
 from . import RuleEngine, RStatus
 from .parser import RuleDefs, Domain, Regex, Wildcard, parse_rules
 from .wildcard import WildcardMatch
-from .._sql import ruleset_db
+from .._sql import Connection, Database, ruleset_db
 
 #** Variables **#
 __all__ = ['RuleEngineDB']
@@ -19,9 +19,9 @@ __all__ = ['RuleEngineDB']
 
 class RuleEngineDB(RuleEngine):
     """
-    Simple Sqlite3 Supported Rule Engine for RuleBackend
+    Simple SQLite Supported Rule Engine for RuleBackend
     """
-    __slots__ = ('conn',
+    __slots__ = ('_conn', '_path', '_sync',
         'regex_allow', 'regex_block' 'wildcard_allow', 'wildcard_block')
 
     regex_allow:    List[re.Pattern]
@@ -30,33 +30,43 @@ class RuleEngineDB(RuleEngine):
     wildcard_block: List[WildcardMatch]
 
     def __init__(self, path: str, sync: bool = True):
-        self.conn = ruleset_db(path)
-        if sync is True:
-            self.sync()
+        self._conn = None
+        self._path = path
+        self._sync = sync
 
-    def _create_source(self, name: str,
+    async def conn(self) -> Database:
+        """
+        Retrieve SQLite Database Connection
+        """
+        if self._conn is None:
+            self._conn = await ruleset_db(self._path)
+            if self._sync:
+                await self.sync()
+        return self._conn
+
+    def _create_source(self, conn: Connection, name: str,
         path: Optional[str], date: Optional[datetime]) -> int:
         """
-        create a new source record with a unique id
+        Create a new source record with a unique id
         """
         date = date or datetime.now()
-        rec  = self.conn.fetch_one('SELECT MAX(SourceId)+1 FROM Sources')
+        rec  = conn.fetch_one('SELECT MAX(SourceId)+1 FROM Sources')
         sid  = (rec[0] if rec else 1) or 1
-        sql  = 'INSERT INTO Sources VALUES (%s, %s, %s, %s)'
-        self.conn.execute(sql, (sid, name, path, date.isoformat()))
+        sql  = 'INSERT INTO Sources VALUES (?, ?, ?, ?)'
+        conn.execute(sql, (sid, name, path, date.isoformat()))
         return sid
 
-    def _update_source(self, sid: int) -> int:
+    def _update_source(self, conn: Connection, sid: int) -> int:
         """
-        update the last-updated datetime tracker for the specific source
+        Update the last-updated datetime tracker for the specific source
         """
-        sql = "UPDATE Sources SET LastUpdated=datetime('now') WHERE SourceId=?"
-        self.conn.execute(sql, (sid, ))
+        sql  = "UPDATE Sources SET LastUpdated=datetime('now') WHERE SourceId=?"
+        conn.execute(sql, (sid, ))
         return sid
 
-    def _delete_source(self, sid: int):
+    def _delete_source(self, conn: Connection, sid: int):
         """
-        delete all patterns and domains associated with a specific source
+        Delete all patterns and domains associated with a specific source
         """
         args = (sid, )
         for stmt in (
@@ -64,11 +74,11 @@ class RuleEngineDB(RuleEngine):
             'DELETE FROM WildcardPatterns WHERE SourceId=?',
             'DELETE FROM Domains WHERE SourceId=?',
         ):
-            self.conn.execute(stmt, args)
+            conn.execute(stmt, args)
 
-    def _ingest(self, sid: int, rules: RuleDefs):
+    def _ingest(self, conn: Connection, sid: int, rules: RuleDefs):
         """
-        add all of the given rules to the specified source
+        Add all the given rules to the specified source
         """
         domains   = []
         regex     = []
@@ -80,58 +90,60 @@ class RuleEngineDB(RuleEngine):
                 wildcards.append((sid, str(rdef.rule), rdef.status.value))
             elif isinstance(rdef.rule, Regex):
                 regex.append((sid, str(rdef.rule), rdef.status.value))
-        self.conn.execute_many(
-            'INSERT INTO RegexPatterns VALUES (%s, %s, %s)', regex)
-        self.conn.execute_many(
-            'INSERT INTO WildcardPatterns VALUES (%s, %s, %s)', wildcards)
-        self.conn.execute_many(
-            'INSERT INTO Domains VALUES (%s, %s, %s)', domains)
+        conn.execute_many(
+            'INSERT INTO RegexPatterns VALUES (?, ?, ?)', regex)
+        conn.execute_many(
+            'INSERT INTO WildcardPatterns VALUES (?, ?, ?)', wildcards)
+        conn.execute_many(
+            'INSERT INTO Domains VALUES (?, ?, ?)', domains)
 
-    def sync(self):
+    async def sync(self):
         """
-        compile regex and wildcard expressions within database
+        Compile regex and wildcard expressions within database
         """
+        conn         = await self.conn()
         sql_regex    = 'SELECT Pattern,Rule FROM RegexPatterns'
         sql_wildcard = 'SELECT Pattern,Rule FROM WildcardPatterns'
         self.regex_allow    = []
         self.regex_block    = []
         self.wildcard_allow = []
         self.wildcard_block = []
-        for row in self.conn.fetch_yield(sql_regex):
+        for row in await conn.fetch_all(sql_regex):
             (pattern, status) = row
             store = self.regex_allow \
                 if status == RStatus.WHITELIST else self.regex_block
             store.append(re.compile(pattern))
-        for row in self.conn.fetch_yield(sql_wildcard):
+        for row in await conn.fetch_all(sql_wildcard):
             (pattern, status) = row
             store = self.wildcard_allow \
                 if status == RStatus.WHITELIST else self.wildcard_block
             store.append(WildcardMatch.compile(pattern))
 
-    def ingest(self, name: str, rules: RuleDefs, sync: bool = True):
+    async def ingest(self, name: str, rules: RuleDefs, sync: bool = True):
         """
-        ingest incoming source of rule definitions and update database
+        Ingest incoming source of rule definitions and update database
 
         :param name:  name of source
         :param rules: rules to ingest
         :param sync:  sync database after ingestion
         """
-        rec = self.conn.fetch_one(
+        conn = await self.conn()
+        rec  = await conn.fetch_one(
             'SELECT SourceId FROM Sources WHERE Name=?', (name, ))
-        sid = self._update_source(rec[0]) \
-            if rec is not None else \
-            self._create_source(name, None, None)
-
-        with self.conn.transaction() as tr:
-            self._delete_source(sid)
-            self._ingest(sid, rules)
-            tr.commit()
+        def tx(conn, tx):
+            sid = self._update_source(conn, rec[0]) \
+                if rec is not None else \
+                self._create_source(conn, name, None, None)
+            self._delete_source(conn, sid)
+            self._ingest(conn, sid, rules)
+            tx.commit()
+        await conn.transaction(tx)
         if sync:
-            self.sync()
+            await self.sync()
 
-    def ingest_string(self, name: str, rules: str, sync: bool = True):
+    async def ingest_string(self, name: str, rules: str, sync: bool = True):
         """
-        parse and ingest ruleset from string
+        Parse and ingest rule-set from string
 
         :param name:  name of source
         :param rules: rules to ingest
@@ -139,12 +151,12 @@ class RuleEngineDB(RuleEngine):
         """
         s    = StringIO(rules)
         rgen = parse_rules(s)
-        self.ingest(name, rgen, sync)
+        await self.ingest(name, rgen, sync)
 
-    def ingest_file(self,
+    async def ingest_file(self,
         fpath: str, name: Optional[str] = None, sync: bool = True) -> bool:
         """
-        parse and ingest ruleset from the specified filepath
+        Parse and ingest rule-set from the specified filepath
 
         :param fpath: filepath containing rules to add to rule engine
         :param name:  custom name of source for items in db
@@ -153,60 +165,58 @@ class RuleEngineDB(RuleEngine):
         """
         name = name or os.path.basename(fpath)
         time = datetime.fromtimestamp(os.path.getmtime(fpath))
+        conn = await self.conn()
 
         sql = 'SELECT SourceId,LastUpdated FROM Sources WHERE Path=?'
-        rec = self.conn.fetch_one(sql, (fpath, ))
+        rec = await conn.fetch_one(sql, (fpath, ))
         if rec is not None and datetime.fromisoformat(rec[1]) == time:
             return False
 
-        with self.conn.transaction() as tr:
-            sid = self._update_source(rec[0]) \
+        def tx(conn, tx):
+            sid = self._update_source(conn, rec[0]) \
                 if rec is not None else \
-                self._create_source(name, fpath, time)
-            self._delete_source(sid)
+                self._create_source(conn, name, fpath, time)
+            self._delete_source(conn, sid)
             with open(fpath, 'r') as f:
                 rules = parse_rules(f)
-                self._ingest(sid, rules)
-            tr.commit()
+                self._ingest(conn, sid, rules)
+            tx.commit()
 
+        await conn.transaction(tx)
         if sync:
-            self.sync()
+            await self.sync()
         return True
 
-    def count_blocked(self) -> int:
+    async def count_blocked(self) -> int:
         """
-        count the number of blocked rule entries
+        Count the number of blocked rule entries
         """
         count = 0
+        conn  = await self.conn()
         for stmt in (
             'SELECT COUNT(1) FROM RegexPatterns WHERE Rule=0',
             'SELECT COUNT(1) FROM WildcardPatterns WHERE Rule=0',
             'SELECT COUNT(1) FROM Domains WHERE Rule=0',
         ):
-            rec    = self.conn.fetch_one(stmt)
+            rec    = await conn.fetch_one(stmt)
             count += rec[0] if rec else 0
         return count
 
-    def match_domain(self, domain: bytes) -> Optional[RStatus]:
+    async def match_domain(self, domain: bytes) -> Optional[RStatus]:
         """
-        match domain against dbm database of rules
-
-        :param domain: domain to check if in database
-        :return:       rule determination (if found)
+        Match domain against database of rules
         """
-        sql = 'SELECT Rule FROM Domains WHERE Domain=? LIMIT 1'
-        rec = self.conn.fetch_one(sql, (domain.decode('latin1'), ))
+        conn = await self.conn()
+        sql  = 'SELECT Rule FROM Domains WHERE Domain=? LIMIT 1'
+        rec  = await conn.fetch_one(sql, (domain.decode('latin1'), ))
         if rec is not None:
             (status, ) = rec
             return RStatus.WHITELIST if status else RStatus.BLACKLIST
         return None
 
-    def match_pattern(self, domain: bytes) -> Optional[RStatus]:
+    async def match_pattern(self, domain: bytes) -> Optional[RStatus]:
         """
-        match domain against existing pattern based rules
-
-        :param domain: domain to check if matching pattern rules
-        :return:       rule determination (if matched)
+        Match domain against existing pattern based rules
         """
         if any(w.match(domain) for w in self.wildcard_allow):
             return RStatus.WHITELIST

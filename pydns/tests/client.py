@@ -1,7 +1,7 @@
 """
 DNS Client UnitTests
 """
-from unittest import TestCase, skip
+from unittest import IsolatedAsyncioTestCase, skip
 
 from .. import Question, RCode, RType
 from ..client import BaseClient, HttpsClient, TcpClient, UdpClient
@@ -11,24 +11,24 @@ __all__ = ['ClientTests']
 
 #** Classes **#
 
-class ClientTests(TestCase):
+class ClientTests(IsolatedAsyncioTestCase):
     """
     DNS Message Packet Parsing/Construction UnitTests
     """
     client: BaseClient
 
-    def tearDown(self) -> None:
+    async def asyncTearDown(self) -> None:
         if hasattr(self, 'client'):
             pool = getattr(self.client, 'pool', None)
             if pool is not None:
-                pool.drain()
+                await pool.drain()
 
-    def test_udp_client(self):
+    async def test_udp_client(self):
         """
-        ensure udp client works as intended
+        Ensure UDP client works as intended
         """
         self.client = UdpClient([('1.1.1.1', 53)])
-        response = self.client.query(Question(b'one.one.one.one', RType.A))
+        response = await self.client.query(Question(b'one.one.one.one', RType.A))
         self.assertEqual(response.flags.rcode, RCode.NoError)
         self.assertEqual(len(response.answers), 2)
         self.assertEqual(response.answers[0].rtype, RType.A)
@@ -37,12 +37,12 @@ class ClientTests(TestCase):
             {'1.0.0.1', '1.1.1.1'})
         self.assertEqual(response.source, '1.1.1.1')
 
-    def test_tcp_client(self):
+    async def test_tcp_client(self):
         """
-        ensure tcp client works as intended
+        Ensure TCP client works as intended
         """
         self.client = TcpClient([('1.1.1.1', 53)])
-        response = self.client.query(Question(b'one.one.one.one', RType.A))
+        response = await self.client.query(Question(b'one.one.one.one', RType.A))
         self.assertEqual(response.flags.rcode, RCode.NoError)
         self.assertEqual(len(response.answers), 2)
         self.assertEqual(response.answers[0].rtype, RType.A)
@@ -52,12 +52,12 @@ class ClientTests(TestCase):
         self.assertEqual(response.source, '1.1.1.1')
 
     @skip('')
-    def test_https_client(self):
+    async def test_https_client(self):
         """
-        ensure https client works as intended
+        Ensure HTTPS client works as intended
         """
         self.client = HttpsClient()
-        response = self.client.query(Question(b'one.one.one.one', RType.A))
+        response = await self.client.query(Question(b'one.one.one.one', RType.A))
         self.assertEqual(response.flags.rcode, RCode.NoError)
         self.assertEqual(len(response.answers), 2)
         self.assertEqual(response.answers[0].rtype, RType.A)

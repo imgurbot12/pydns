@@ -4,10 +4,11 @@ Thread-Safe Wrapper for SQLite Backends
 import os
 from typing import Any
 
-from anysql import Database
+from anysql.core import Connection
+from anysql import AsyncDatabase as Database
 
 #** Variables **#
-__all__ = ['resolver_db', 'ruleset_db', 'stats_db']
+__all__ = ['Connection', 'Database', 'resolver_db', 'ruleset_db', 'stats_db']
 
 DIR          = os.path.dirname(__file__)
 RESOLVER_SQL = os.path.join(DIR, 'resolver.sql')
@@ -16,36 +17,38 @@ STATS_SQL    = os.path.join(DIR, 'stats.sql')
 
 #** Functions **#
 
-def _connect(path: str, sqlfile: str, **kwargs: Any) -> Database:
+async def _connect(path: str, sqlfile: str, **kwargs: Any) -> Database:
     uri      = path if '://' in path else f'sqlite://{path}'
-    database = Database(uri, **kwargs)
-    database.connect()
+    database = Database(uri, **kwargs, autocommit=True)
+    await database.connect()
 
     if 'sqlite' in database.uri.scheme:
-        database.execute('PRAGMA journal_mode=WAL')
+        await database.execute('PRAGMA journal_mode=WAL')
 
     with open(sqlfile, 'r') as f:
         sql = f.read()
         statements = [s.strip() for s in sql.split(';')]
         statements = [s for s in statements if s]
 
-    with database.transaction() as tr:
+    def tx(conn, tx):
         for sql in statements:
-            database.execute(sql)
-        tr.commit()
+            conn.execute(sql)
+        tx.commit()
+    await database.transaction(tx)
+
     return database
 
-def resolver_db(path: str, **kwargs: Any) -> Database:
+async def resolver_db(path: str, **kwargs: Any) -> Database:
     """
     """
-    return _connect(path, RESOLVER_SQL, **kwargs)
+    return await _connect(path, RESOLVER_SQL, **kwargs)
 
-def ruleset_db(path: str, **kwargs: Any) -> Database:
+async def ruleset_db(path: str, **kwargs: Any) -> Database:
     """
     """
-    return _connect(path, RULESET_SQL, **kwargs)
+    return await _connect(path, RULESET_SQL, **kwargs)
 
-def stats_db(path: str, **kwargs: Any) -> Database:
+async def stats_db(path: str, **kwargs: Any) -> Database:
     """
     """
-    return _connect(path, STATS_SQL, **kwargs)
+    return await _connect(path, STATS_SQL, **kwargs)

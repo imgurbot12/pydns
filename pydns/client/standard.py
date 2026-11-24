@@ -1,10 +1,10 @@
 """
 Standard UDP/TCP Client Implementations
 """
+import asyncio
 import random
-import socket
 from abc import ABC, abstractmethod
-from typing import Generic, List, Optional, TypeVar
+from typing import Generic, List, Optional, TypeVar, Union
 
 from pypool import AsyncPool
 from pyserve import RawAddr, TcpAsyncClient, UdpAsyncClient
@@ -15,7 +15,7 @@ from . import BaseClient, Message
 #** Variables **#
 __all__ = ['UdpClient', 'TcpClient']
 
-P = TypeVar('P', bound=AsyncPool)
+P = TypeVar('P', bound=Union[TcpAsyncClient, UdpAsyncClient])
 
 #** Classes **#
 
@@ -44,12 +44,11 @@ class Client(BaseClient, ABC, Generic[P]):
         """
         raise NotImplementedError
 
-    @abstractmethod
     async def cleanup(self, client: P):
         """
         Close and clean an existing socket object
         """
-        raise NotImplementedError
+        client.close()
 
     def pickaddr(self) -> RawAddr:
         """
@@ -57,11 +56,11 @@ class Client(BaseClient, ABC, Generic[P]):
         """
         return random.choice(self.addresses)
 
-    def drain(self):
+    async def drain(self):
         """
         Drain socket pool
         """
-        self.pool.drain()
+        await self.pool.drain()
 
 class UdpClient(Client[UdpAsyncClient]):
     """
@@ -72,15 +71,12 @@ class UdpClient(Client[UdpAsyncClient]):
         #NOTE: As of py3.14, using the DatagramProtocol over
         # the new 'loop.sock_*' functions is a bazillion times
         # faster at scale for some reason. It's night and day.
-        client = UdpAsyncClient(True)
-        client.socket.settimeout(self.timeout)
+        client = UdpAsyncClient(self.timeout, True)
         return client
 
-    async def cleanup(self, client: UdpAsyncClient):
-        client.close()
-
     async def request(self, msg: Message, addr: Optional[RawAddr] = None) -> Message:
-        async with self.pool.reserve(discard_on=(socket.timeout, )) as client:
+        async with self.pool.reserve(
+            discard_on=(asyncio.TimeoutError, )) as client:
             # send request
             addr = addr or self.pickaddr()
             data = msg.pack()
@@ -96,16 +92,13 @@ class TcpClient(Client[TcpAsyncClient]):
 
     async def newsock(self) -> TcpAsyncClient:
         addr   = self.pickaddr()
-        client = TcpAsyncClient()
-        client.socket.settimeout(self.timeout)
+        client = TcpAsyncClient(timeout=self.timeout)
         await client.connect(addr)
         return client
 
-    async def cleanup(self, client: TcpAsyncClient):
-        client.close()
-
     async def request(self, msg: Message) -> Message:
-        async with self.pool.reserve(discard_on=(socket.timeout, )) as client:
+        async with self.pool.reserve(
+            discard_on=(asyncio.TimeoutError, BrokenPipeError)) as client:
             # send request
             data = msg.pack()
             data = len(data).to_bytes(2, 'big') + data

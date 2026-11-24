@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 
 from . import Stats, StatStorage, date_now
-from .._sql import stats_db
+from .._sql import Database, stats_db
 from .... import RType
 
 #** Variables **#
@@ -17,7 +17,7 @@ SCHEMA = os.path.join(os.path.dirname(__file__), '../_sql/stats.sql')
 
 def round_date(now: datetime) -> datetime:
     """
-    round date to the nearest hour
+    Round date to the nearest hour
     """
     return now.replace(minute=0, second=0, microsecond=0)
 
@@ -25,23 +25,33 @@ def round_date(now: datetime) -> datetime:
 
 class StatStoreDB(StatStorage):
     """
-    Sqlite3 Statistics Storage Implementation
+    SQLite Statistics Storage Implementation
     """
-    __slots__ = ('conn', )
+    __slots__ = ('_conn', '_path')
 
     def __init__(self, path: str):
-        self.conn = stats_db(path)
+        self._conn = None
+        self._path = path
 
-    def stats(self, span: timedelta = timedelta(hours=24)) -> List[Stats]:
+    async def conn(self) -> Database:
         """
-        retrieve stats grouped by hour for the specified time-span
+        Retrieve SQLite Database Connection
+        """
+        if self._conn is None:
+            self._conn = await stats_db(self._path)
+        return self._conn
+
+    async def stats(self, span: timedelta = timedelta(hours=24)) -> List[Stats]:
+        """
+        Retrieve stats grouped by hour for the specified time-span
         """
         now:   datetime = date_now()
         then:  datetime = now - span
         stats: Dict[datetime, Stats] = {}
 
-        sql = 'SELECT * FROM Stats WHERE Date>=?'
-        for row in self.conn.fetch_all(sql, (then.isoformat(), )):
+        sql  = 'SELECT * FROM Stats WHERE Date>=?'
+        conn = await self.conn()
+        for row in await conn.fetch_all(sql, (then.isoformat(), )):
             (s_date, authority, blocked, questions) = row
             date = datetime.fromisoformat(s_date)
             if date not in stats:
@@ -53,12 +63,12 @@ class StatStoreDB(StatStorage):
             stat.with_authority  += authority
 
             sql = 'SELECT RType,Count FROM Questions WHERE Date=?'
-            for (rtype, count) in self.conn.fetch_all(sql, (s_date, )):
+            for (rtype, count) in await conn.fetch_all(sql, (s_date, )):
                 rtype = RType[rtype]
                 stat.query_counts.setdefault(rtype, 0)
                 stat.query_counts[rtype] += count
             sql = 'SELECT Source,Count FROM Sources WHERE Date=?'
-            for (source, count) in self.conn.fetch_all(sql, (s_date, )):
+            for (source, count) in await conn.fetch_all(sql, (s_date, )):
                 stat.query_sources.setdefault(source, 0)
                 stat.query_sources[source] += count
 
@@ -72,46 +82,48 @@ class StatStoreDB(StatStorage):
         final.sort(key=lambda s: s.date)
         return final
 
-    def _upsert(self, now: Optional[datetime],
+    async def _upsert(self, now: Optional[datetime],
         field: str, count: int):
         """
-        attempt to update global stats records but insert if data is missing
+        Attempt to update global stats records but insert if data is missing
         """
         date  = (now or date_now()).isoformat()
         sql   = f'UPDATE Stats SET {field}={field}+? WHERE Date=?'
-        if self.conn.execute(sql, (count, date)) < 1:
+        conn  = await self.conn()
+        if await conn.execute(sql, (count, date)) < 1:
             insert = 'INSERT INTO Stats VALUES (?, 0, 0, 0)'
-            self.conn.execute(insert, (date, ))
-            self.conn.execute(sql, (count, date))
+            await conn.execute(insert, (date, ))
+            await conn.execute(sql, (count, date))
 
-    def _upsert2(self, now: Optional[datetime],
+    async def _upsert2(self, now: Optional[datetime],
         table: str, field: str, value: str, count: int):
         """
-        attempt to update secondary records but insert if data is missing
+        Attempt to update secondary records but insert if data is missing
         """
         date = (now or date_now()).isoformat()
         sql  = f'UPDATE {table} SET Count=Count+? WHERE Date=? AND {field}=?'
-        if self.conn.execute(sql, (count, date, value)) < 1:
+        conn = await self.conn()
+        if await conn.execute(sql, (count, date, value)) < 1:
             sql = f'INSERT INTO {table} VALUES (?, ?, ?)'
-            self.conn.execute(sql, (date, value, count))
+            await conn.execute(sql, (date, value, count))
 
-    def count_authority(self, count: int = 1, now: Optional[datetime] = None):
+    async def count_authority(self, count: int = 1, now: Optional[datetime] = None):
         now = round_date(now) if now else None
-        self._upsert(now, 'Authority', count)
+        await self._upsert(now, 'Authority', count)
 
-    def count_question(self, rtype: RType,
+    async def count_question(self, rtype: RType,
         count: int = 1, now: Optional[datetime] = None):
         now = round_date(now) if now else None
-        self._upsert(now, 'Questions', count)
-        self._upsert2(now, 'Questions', 'RType', rtype.name, count)
+        await self._upsert(now, 'Questions', count)
+        await self._upsert2(now, 'Questions', 'RType', rtype.name, count)
 
-    def count_block(self, rtype: RType,
+    async def count_block(self, rtype: RType,
         count: int = 1, now: Optional[datetime] = None):
         now = round_date(now) if now else None
-        self._upsert(now, 'Blocked', count)
-        self._upsert2(now, 'Blocked', 'RType', rtype.name, count)
+        await self._upsert(now, 'Blocked', count)
+        await self._upsert2(now, 'Blocked', 'RType', rtype.name, count)
 
-    def count_source(self, source: str,
+    async def count_source(self, source: str,
         count: int = 1, now: Optional[datetime] = None):
         now = round_date(now) if now else None
-        self._upsert2(now, 'Sources', 'Source', source, count)
+        await self._upsert2(now, 'Sources', 'Source', source, count)

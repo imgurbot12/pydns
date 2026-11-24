@@ -2,7 +2,7 @@
 DNS Recursive Resolver Backend Engine UnitTests
 """
 from typing import List, Optional, Type
-from unittest import TestCase
+from unittest import IsolatedAsyncioTestCase
 
 from .. import A, NS, RType, Answer
 from ..content import Unknown
@@ -13,22 +13,24 @@ __all__ = ['ResolverTests']
 
 #** Classes **#
 
-class ResolverTests(TestCase):
+class ResolverTests(IsolatedAsyncioTestCase):
     """
-    DNS Recurisve Resolver Backend UnitTests
+    DNS Recursive Resolver Backend UnitTests
     """
 
     def setUp(self) -> None:
         self.cache    = ResolverCacheDB('sqlite://:memory:')
         self.resolver = Resolver(cache=self.cache)
 
-    def tearDown(self) -> None:
-        self.resolver.client.pool.drain()
+    async def asyncTearDown(self) -> None:
+        await self.resolver.client.pool.drain()
+        if self.cache._conn is not None:
+            await self.cache._conn.disconnect()
 
     def assertAnswers(self,
         answers: Optional[List[Answer]], rclass: Type):
         """
-        assert answers are not empty and match the given class
+        Assert answers are not empty and match the given class
         """
         self.assertIsNotNone(answers)
         answers = answers or []
@@ -38,37 +40,37 @@ class ResolverTests(TestCase):
     def assertRecords(self,
         records: Optional[List[Record]], rclass: Type):
         """
-        assert records are not empty and match the given class
+        Assert records are not empty and match the given class
         """
         self.assertIsNotNone(records)
         records = records or []
         self.assertGreater(len(records), 0)
         self.assertTrue(all(isinstance(r.content, rclass) for r in records))
 
-    def test_cache(self):
+    async def test_cache(self):
         """
-        ensure cache/lookups are working as intended
+        Ensure cache/lookups are working as intended
         """
-        answers = self.resolver.resolve(b'www.google.com', RType.A)
+        answers = await self.resolver.resolve(b'www.google.com', RType.A)
         self.assertAnswers(answers, A)
 
-        com            = self.cache.get(b'com', RType.NS)
-        google_com     = self.cache.get(b'google.com', RType.NS)
-        www_google_com = self.cache.get(b'www.google.com', RType.A)
+        com            = await self.cache.get(b'com', RType.NS)
+        google_com     = await self.cache.get(b'google.com', RType.NS)
+        www_google_com = await self.cache.get(b'www.google.com', RType.A)
         self.assertRecords(com, NS)
         self.assertRecords(google_com, NS)
         self.assertRecords(www_google_com, A)
 
-    def test_unknown(self):
+    async def test_unknown(self):
         """
         """
-        answers = self.resolver.resolve(b'www.google.com', RType.HTTPS)
+        answers = await self.resolver.resolve(b'www.google.com', RType.HTTPS)
         self.assertAnswers(answers, Unknown)
         answers = answers or []
         self.assertEqual(len(answers), 1)
         self.assertEqual(answers[0].content.rtype, RType.HTTPS)
 
-        https = self.cache.get(b'www.google.com', RType.HTTPS) or []
+        https = await self.cache.get(b'www.google.com', RType.HTTPS) or []
         self.assertRecords(https, Unknown)
         self.assertEqual(len(https), 1)
         self.assertEqual(answers[0].content.rtype, RType.HTTPS)

@@ -4,7 +4,7 @@ DNS Server Stats Backend Engine UnitTests
 import random
 from datetime import datetime, timedelta
 from typing import Dict, List
-from unittest import TestCase
+from unittest import IsolatedAsyncioTestCase, TestCase
 
 from pydns.server.backend.stats import date_now
 
@@ -20,7 +20,7 @@ SOURCES = ['1.1.1.1', '8.8.8.8', 'local']
 
 #** Classes **#
 
-class StatTests(TestCase):
+class StatTests(IsolatedAsyncioTestCase):
     """
     DNS Server Stats Backend UnitTests
     """
@@ -29,7 +29,7 @@ class StatTests(TestCase):
         self.store   = StatStoreDB(':memory:')
         self.backend = StatBackend(MemoryBackend(), self.store)
 
-    def simulate(self, hours: int = 24) -> List[Stats]:
+    async def simulate(self, hours: int = 24) -> List[Stats]:
         """
         simulate query activity, record to stats, and return actual numbers
         """
@@ -53,12 +53,12 @@ class StatTests(TestCase):
                 sources.setdefault(source, 0)
                 sources[source] += 1
 
-            self.store.count_authority(authority, now)
-            self.store.count_block(RType.A, blocked, now)
+            await self.store.count_authority(authority, now)
+            await self.store.count_block(RType.A, blocked, now)
             for rtype, count in rtypes.items():
-                self.store.count_question(rtype, count, now)
+                await self.store.count_question(rtype, count, now)
             for source, count in sources.items():
-                self.store.count_source(source, count, now)
+                await self.store.count_source(source, count, now)
             stats.append(Stats(
                 date=now,
                 total_queries=questions,
@@ -70,12 +70,12 @@ class StatTests(TestCase):
         stats.sort(key=lambda s: s.date)
         return stats
 
-    def test_empty_stats(self):
+    async def test_empty_stats(self):
         """
-        ensure stat reporting still returns when empty
+        Ensure stat reporting still returns when empty
         """
         now   = date_now()
-        stats = self.store.stats()
+        stats = await self.store.stats()
         self.assertEqual(len(stats), 24)
         for n, stat in enumerate(stats, 1):
             hour = now - timedelta(hours=24-n)
@@ -86,12 +86,12 @@ class StatTests(TestCase):
             self.assertDictEqual(stat.query_counts, {})
             self.assertDictEqual(stat.query_sources, {})
 
-    def test_full_stats(self):
+    async def test_full_stats(self):
         """
         ensure stat recording is accurate
         """
-        expect = self.simulate()
-        actual = self.store.stats()
+        expect = await self.simulate()
+        actual = await self.store.stats()
         self.assertEqual(len(expect), len(actual))
         for s1, s2 in zip(expect, actual):
             self.assertEqual(s1.date, s2.date)

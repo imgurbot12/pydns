@@ -28,7 +28,7 @@ NULL_IPV6 = AAAA(IPv6Address('::'))
 
 def split_domains(domain: bytes) -> List[bytes]:
     """
-    split base-domain into all possible subdomains
+    Split base-domain into all possible subdomains
     example: www.example.com => [www.example.com, example.com]
 
     :param domain: domain to be split into items
@@ -60,7 +60,7 @@ class BlockMode(str, Enum):
 
     def get_answers(self, domain: bytes, rtype: RType, source: str) -> Answers:
         """
-        generate answers based on block-mode
+        Generate answers based on block-mode
 
         :param domain: question domain
         :param rtype:  question requested record-type
@@ -81,37 +81,37 @@ class RuleEngine(Protocol):
     """
 
     @abstractmethod
-    def count_blocked(self) -> int:
+    async def count_blocked(self) -> int:
         """
-        count the number of blocked entries in engine
-        """
-        raise NotImplementedError
-
-    @abstractmethod
-    def match_domain(self, domain: bytes) -> Optional[RStatus]:
-        """
-        check if a domain matches an engine rule and if its white/blacklisted
+        Count the number of blocked entries in engine
         """
         raise NotImplementedError
 
     @abstractmethod
-    def match_pattern(self, domain: bytes) -> Optional[RStatus]:
+    async def match_domain(self, domain: bytes) -> Optional[RStatus]:
         """
-        check if a domain matches an engine pattern and if its white/blacklisted
+        Check if a domain matches an engine rule and if its white/blacklisted
         """
         raise NotImplementedError
 
-    def match(self, domain: bytes) -> Optional[RStatus]:
+    @abstractmethod
+    async def match_pattern(self, domain: bytes) -> Optional[RStatus]:
         """
-        check if domain is contained within the database
+        Check if a domain matches an engine pattern and if its white/blacklisted
+        """
+        raise NotImplementedError
+
+    async def match(self, domain: bytes) -> Optional[RStatus]:
+        """
+        Check if domain is contained within the database
 
         :param domain: domain to check if in db
         :return:       true if domain in db
         """
-        rule = self.match_domain(*split_domains(domain))
+        rule = await self.match_domain(*split_domains(domain))
         if rule is not None:
             return rule
-        return self.match_pattern(domain)
+        return await self.match_pattern(domain)
 
 @dataclass(slots=True, repr=False)
 class RuleBackend(Backend):
@@ -134,18 +134,11 @@ class RuleBackend(Backend):
         self.blacklist_count  = len(self.blacklist)
 
     async def is_authority(self, domain: bytes) -> bool:
-        """
-        :param domain: check if domain is authority
-        :return:       true if backend has authority over domain
-        """
         return await self.backend.is_authority(domain)
 
-    def is_blocked(self, domain: bytes) -> bool:
+    async def is_blocked(self, domain: bytes) -> bool:
         """
-        check if the following domain is blocked
-
-        :param domain: domain to check if blocked
-        :return:       true if domain is blocked else false
+        Check if the following domain is blocked
         """
         # check if domain in in-memory whitelist of blacklist
         domains = split_domains(domain)
@@ -157,7 +150,7 @@ class RuleBackend(Backend):
         if self.engine:
             # match against exact domain
             for match in domains:
-                matches = self.engine.match_domain(match)
+                matches = await self.engine.match_domain(match)
                 if matches is RStatus.BLACKLIST:
                     self.blacklist.add(domain)
                     self.blacklist.add(match)
@@ -167,7 +160,7 @@ class RuleBackend(Backend):
                     self.whitelist.add(match)
                     return False
             # match against patterns
-            matches = self.engine.match_pattern(domain)
+            matches = await self.engine.match_pattern(domain)
             if matches is RStatus.BLACKLIST:
                 self.blacklist.add(domain)
                 return True
@@ -178,21 +171,17 @@ class RuleBackend(Backend):
 
     async def get_answers(self, domain: bytes, rtype: RType) -> Answers:
         """
-        block lookups for blacklisted domains, otherwise do standard query
-
-        :param domain: domain to check if blocked or return results
-        :param rtype:  record-type associated w/ query
-        :return:       empty-answers (if blocked), else standard search results
+        Block lookups for blacklisted domains, otherwise do standard query
         """
-        if self.is_blocked(domain):
+        if await self.is_blocked(domain):
             return self.block_mode.get_answers(domain, rtype, self.source)
         return await self.backend.get_answers(domain, rtype)
 
     async def count_blocked(self) -> int:
         """
-        count number of blacklisted items in rule backend
+        Count number of blacklisted items in rule backend
         """
-        blacklisted = self.engine.count_blocked() + self.blacklist_count \
+        blacklisted = await self.engine.count_blocked() + self.blacklist_count \
             if self.engine is not None else len(self.blacklist)
         return blacklisted + await self.backend.count_blocked()
 

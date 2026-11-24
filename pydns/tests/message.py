@@ -24,7 +24,7 @@ class MessageTests(TestCase):
 
     def test_parse_request(self):
         """
-        ensure request parsing works as intended
+        Ensure request parsing works as intended
         """
         data    = bytes.fromhex(EXAMPLE_REQUEST)
         request = Message.unpack(data)
@@ -50,7 +50,7 @@ class MessageTests(TestCase):
 
     def test_pack_request(self):
         """
-        ensure request packing works as intended
+        Ensure request packing works as intended
         """
         data    = bytes.fromhex(EXAMPLE_REQUEST)
         request = Message.unpack(data)
@@ -59,7 +59,7 @@ class MessageTests(TestCase):
 
     def test_parse_response(self):
         """
-        ensure response parsing works as intended
+        Ensure response parsing works as intended
         """
         data     = bytes.fromhex(EXAMPLE_RESPONSE)
         response = Message.unpack(data)
@@ -90,7 +90,7 @@ class MessageTests(TestCase):
 
     def test_pack_response(self):
         """
-        ensure response packing works as intended
+        Ensure response packing works as intended
         """
         data     = bytes.fromhex(EXAMPLE_REQUEST)
         response = Message.unpack(data)

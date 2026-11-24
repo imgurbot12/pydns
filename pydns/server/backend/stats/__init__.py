@@ -23,7 +23,7 @@ __all__ = [
 
 def date_now() -> datetime:
     """
-    generate current timestamp rounded to the hour
+    Generate current timestamp rounded to the hour
     """
     now = datetime.now()
     return now.replace(minute=0, second=0, microsecond=0)
@@ -51,40 +51,40 @@ class StatStorage(Protocol):
     """
 
     @abstractmethod
-    def stats(self, span: timedelta = timedelta(hours=24)) -> List[Stats]:
+    async def stats(self, span: timedelta = timedelta(hours=24)) -> List[Stats]:
         """
-        list stats for each hour in the day (24 entries)
-        """
-        raise NotImplementedError
-
-    @abstractmethod
-    def count_authority(self, count: int = 1, now: Optional[datetime] = None):
-        """
-        update count for an authoritative answer
+        List stats for each hour in the day (24 entries)
         """
         raise NotImplementedError
 
     @abstractmethod
-    def count_question(self, rtype: RType,
+    async def count_authority(self, count: int = 1, now: Optional[datetime] = None):
+        """
+        Update count for an authoritative answer
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    async def count_question(self, rtype: RType,
         count: int = 1, now: Optional[datetime] = None):
         """
-        update count for number of questions serviced
+        Update count for number of questions serviced
         """
         raise NotImplementedError
 
     @abstractmethod
-    def count_block(self, rtype: RType,
+    async def count_block(self, rtype: RType,
         count: int = 1, now: Optional[datetime] = None):
         """
-        update count for number of questions blocked
+        Update count for number of questions blocked
         """
         raise NotImplementedError
 
     @abstractmethod
-    def count_source(self, source: str,
+    async def count_source(self, source: str,
         count: int = 1, now: Optional[datetime] = None):
         """
-        update count for answers of specific sources
+        Update count for answers of specific sources
         """
         raise NotImplementedError
 
@@ -98,36 +98,36 @@ class StatBackend(Backend):
     backend: Backend
     storage: StatStorage
 
-    def stats(self, span: timedelta = timedelta(hours=24)) -> List[Stats]:
+    async def stats(self, span: timedelta = timedelta(hours=24)) -> List[Stats]:
         """
-        retrieve statistics from storage
+        Retrieve statistics from storage
         """
-        return self.storage.stats(span)
+        return await self.storage.stats(span)
 
     def is_blocked(self, answers: Answers) -> bool:
         """
-        determine if answer should be considered blocked
+        Determine if answer should be considered blocked
         """
         return answers.source in {RuleBackend.source, }
 
-    def is_authority(self, domain: bytes) -> bool:
+    async def is_authority(self, domain: bytes) -> bool:
         """
-        retrieve if item is authority and update stats
+        Retrieve if item is authority and update stats
         """
-        is_authority = self.backend.is_authority(domain)
+        is_authority = await self.backend.is_authority(domain)
         if is_authority:
-            self.storage.count_authority()
+            await self.storage.count_authority()
         return is_authority
 
-    def get_answers(self, domain: bytes, rtype: RType) -> Answers:
+    async def get_answers(self, domain: bytes, rtype: RType) -> Answers:
         """
-        retrieve answers and update statistics
+        Retrieve answers and update statistics
         """
-        answers = self.backend.get_answers(domain, rtype)
+        answers = await self.backend.get_answers(domain, rtype)
         if self.is_blocked(answers):
-            self.storage.count_block(rtype)
-        self.storage.count_question(rtype)
-        self.storage.count_source(answers.forwarder or 'local')
+            await self.storage.count_block(rtype)
+        await self.storage.count_question(rtype)
+        await self.storage.count_source(answers.forwarder or 'local')
         return answers
 
 #** Import **#

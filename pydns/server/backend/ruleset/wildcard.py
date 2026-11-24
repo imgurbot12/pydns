@@ -35,7 +35,7 @@ class WildcardMatch:
 
     def match(self, string: bytes) -> bool:
         """
-        determine if specified string matches the compiled pattern
+        Determine if specified string matches the compiled pattern
 
         :param string: string to compare to pattern
         :return:       true if pattern matches compiled expression

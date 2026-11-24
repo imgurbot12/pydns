@@ -10,7 +10,7 @@ from pyderive.extensions.serde import (
     TypeEncoder, TypeDecoder, serialize, deserialize)
 
 from . import Record, ResolverCache
-from .._sql import resolver_db
+from .._sql import Database, resolver_db
 from .... import RType
 from ....content import CONTENT_MAP, Content, Unknown
 
@@ -21,7 +21,7 @@ __all__ = ['ResolverCacheDB']
 
 def ser_content(record: Record) -> Union[str, bytes]:
     """
-    serialize dns content record (including unknown variants)
+    Serialize DNS content record (including unknown variants)
     """
     if isinstance(record.content, Unknown):
         unk   = record.content
@@ -32,7 +32,7 @@ def ser_content(record: Record) -> Union[str, bytes]:
 
 def des_content(cclass: Optional[Type[Content]], serial: str) -> Content:
     """
-    deserialize dns content record (including unknown variants)
+    Deserialize DNS content record (including unknown variants)
     """
     if cclass is None:
         data    = json.loads(serial)
@@ -59,32 +59,43 @@ class Decoder(TypeDecoder):
 class ResolverCacheDB(ResolverCache):
     """
     """
-    __slots__ = ('conn', )
+    __slots__ = ('_conn', '_path')
 
     def __init__(self, path: str):
-        self.conn = resolver_db(path, autocommit=True)
+        self._conn = None
+        self._path = path
 
-    def _domain_id(self, domain: bytes) -> int:
+    async def conn(self) -> Database:
+        """
+        Retrieve SQLite Database Connection
+        """
+        if self._conn is None:
+            self._conn = await resolver_db(self._path)
+        return self._conn
+
+    async def _domain_id(self, domain: bytes) -> int:
         """
         """
-        dom = domain.decode('latin1')
-        sql = 'SELECT DomainId FROM Domains WHERE Domain=?'
-        rec = self.conn.fetch_one(sql, (domain, ))
+        dom  = domain.decode('latin1')
+        sql  = 'SELECT DomainId FROM Domains WHERE Domain=?'
+        conn = await self.conn()
+        rec  = await conn.fetch_one(sql, (domain, ))
         if rec is not None:
             return rec[0]
-        rec = self.conn.fetch_one('SELECT MAX(DomainId)+1 FROM Domains')
+        rec = await conn.fetch_one('SELECT MAX(DomainId)+1 FROM Domains')
         did = (rec[0] if rec else 1) or 1
-        self.conn.execute('INSERT INTO Domains VALUES (%s, %s)', (did, dom))
+        await conn.execute('INSERT INTO Domains VALUES (?, ?)', (did, dom))
         return did
 
-    def get(self, domain: bytes, rtype: RType) -> Optional[List[Record]]:
+    async def get(self, domain: bytes, rtype: RType) -> Optional[List[Record]]:
         cclass = CONTENT_MAP.get(rtype, None)
-        now = datetime.now()
-        did = self._domain_id(domain)
-        sql = 'SELECT Content,Expiration FROM Records WHERE DomainId=? AND RType=?'
+        now  = datetime.now()
+        did  = await self._domain_id(domain)
+        sql  = 'SELECT Content,Expiration FROM Records WHERE DomainId=? AND RType=?'
+        conn = await self.conn()
         records = []
         expired = 0
-        for row in self.conn.fetch_yield(sql, (did, rtype.name)):
+        for row in await conn.fetch_all(sql, (did, rtype.name)):
             (content, expiration) = row
             content    = des_content(cclass, content)
             expiration = datetime.fromisoformat(expiration)
@@ -94,17 +105,18 @@ class ResolverCacheDB(ResolverCache):
             records.append(Record(content, expiration))
         if expired:
             sql = 'DELETE FROM Records WHERE Expiration<=?'
-            self.conn.execute(sql, (now.isoformat(), ))
+            await conn.execute(sql, (now.isoformat(), ))
         return records if records else None
 
-    def put(self, domain: bytes, rtype: RType, records: List[Record]):
-        did    = self._domain_id(domain)
+    async def put(self, domain: bytes, rtype: RType, records: List[Record]):
+        did    = await self._domain_id(domain)
         values = []
         args   = []
+        conn   = await self.conn()
         for record in records:
-            values.append('(%s, %s, %s, %s)')
+            values.append(f'(?, ?, ?, ?)')
             content    = ser_content(record)
             expiration = record.expiration.isoformat()
             args.extend([did, rtype.name, content, expiration])
         sql = 'INSERT INTO Records VALUES ' + ','.join(values)
-        self.conn.execute(sql, tuple(args))
+        await conn.execute(sql, args)

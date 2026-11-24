@@ -61,7 +61,7 @@ ALLOWED_OPTIONS = {'dnsrewrite', 'important'}
 
 def is_ipaddr(ip: str) -> bool:
     """
-    attempt to parse string as an ip-address and return success
+    Attempt to parse string as an ip-address and return success
 
     :param ip: potential ip-address string
     :return:   true if string is ip-address
@@ -74,7 +74,7 @@ def is_ipaddr(ip: str) -> bool:
 
 def is_regex(rgx: str) -> bool:
     """
-    attempt to parse string as regex expression and return success
+    Attempt to parse string as regex expression and return success
 
     :param rgx: potential regex string
     :return:    true if string is valid regex
@@ -87,7 +87,7 @@ def is_regex(rgx: str) -> bool:
 
 def parse_rule(line: str) -> Optional[RuleDef]:
     """
-    parse rule string into associated rule-type
+    Parse rule string into associated rule-type
 
     :param line: raw rule defintion on single-line
     :return:     parsed rule definition
@@ -138,7 +138,7 @@ def parse_rule(line: str) -> Optional[RuleDef]:
 
 def parse_rules(f: TextIO) -> RuleDefs:
     """
-    parse all available rules contained within a file
+    Parse all available rules contained within a file
 
     :param f: file object to read rules from
     :return:  generator of parsed rule definitions

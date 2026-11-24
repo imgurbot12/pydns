@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 import socket
 from typing import (
     ClassVar, Dict, Generic, List, Optional, Protocol, TypeVar, Union, cast)
+from warnings import deprecated
 
 from pyderive import dataclass
 
@@ -61,18 +62,16 @@ class ResolverCache(Protocol):
     """
 
     @abstractmethod
-    def get(self, domain: bytes, rtype: RType) -> Optional[List[Record]]:
+    async def get(self, domain: bytes, rtype: RType) -> Optional[List[Record]]:
         raise NotImplementedError
 
     @abstractmethod
-    def put(self, domain: bytes, rtype: RType, records: List[Record]):
+    async def put(self, domain: bytes, rtype: RType, records: List[Record]):
         raise NotImplementedError
 
-    def put_answers(self, answers: List[Answer]):
+    async def put_answers(self, answers: List[Answer]):
         """
-        batch all answers to be cached into list of associated record-types
-
-        :param answers: list of answers to save within cache
+        Batch all answers to be cached into list of associated record-types
         """
         now = datetime.now()
         records: Dict[bytes, Dict[RType, List[Record]]] = {}
@@ -84,7 +83,7 @@ class ResolverCache(Protocol):
             records[answer.name][answer.content.rtype].append(record)
         for domain, cache in records.items():
             for rtype, recs in cache.items():
-                self.put(domain, rtype, recs)
+                await self.put(domain, rtype, recs)
 
 class MemoryCache(ResolverCache):
     """
@@ -97,7 +96,7 @@ class MemoryCache(ResolverCache):
     def __init__(self):
         self.cache = {}
 
-    def get(self, domain: bytes, rtype: RType) -> Optional[List[Record]]:
+    async def get(self, domain: bytes, rtype: RType) -> Optional[List[Record]]:
         cache = self.cache.get(domain, None)
         if not cache:
             return None
@@ -112,17 +111,20 @@ class MemoryCache(ResolverCache):
         cache[rtype] = records
         return records
 
-    def put(self, domain: bytes, rtype: RType, records: List[Record]):
+    async def put(self, domain: bytes, rtype: RType, records: List[Record]):
         self.cache.setdefault(domain, {})
         self.cache[domain].setdefault(rtype, [])
         self.cache[domain][rtype].extend(records)
 
+#TODO: port resolver to full async using UdpAsyncClient rather than socket
+
+@deprecated('Highly experimental. Use at own risk.')
 class Resolver(Backend):
     """
     Recursive Manual DNS Resolution Backend
 
     This Backend recursively searches for a specific record from the root
-    domain servers which avoids relying on third-party dns servers to complete
+    domain servers which avoids relying on third-party DNS servers to complete
     the search on the client's behalf.
     """
     __slots__ = ('backend', 'cache', 'client', 'servers', )
@@ -144,7 +146,7 @@ class Resolver(Backend):
         self.cache   = cache or ResolverCacheDB('./rcache.db')
         self.servers = root_servers
 
-    def get_closest_ns(self, domain: bytes) -> bytes:
+    async def get_closest_ns(self, domain: bytes) -> bytes:
         """
         get closest associated nameserver with the given domain
 
@@ -155,7 +157,7 @@ class Resolver(Backend):
         domains  = (b'.'.join(segments[n:]) for n in range(0, len(segments)))
         servers  = None #type: Optional[List[Record[NS]]]
         for segment in domains:
-            servers = self.cache.get(segment, RType.NS)
+            servers = await self.cache.get(segment, RType.NS)
             if servers is not None:
                 break
         if servers:
@@ -163,24 +165,24 @@ class Resolver(Backend):
             return ns.content.nameserver
         return random.choice(self.servers)
 
-    def get_host(self, domain: bytes) -> str:
+    async def get_host(self, domain: bytes) -> str:
         """
         retrieve host address associated with domain before connecting
 
         :param domain: specified domain to resolve
         :return:       resolved host address for domain
         """
-        ipv4: Optional[List[Record[A]]] = self.cache.get(domain, RType.A)
+        ipv4: Optional[List[Record[A]]] = await self.cache.get(domain, RType.A)
         if ipv4:
             ips = [str(r.content.ip) for r in ipv4]
             return random.choice(ips)
-        ipv6: Optional[List[Record[AAAA]]] = self.cache.get(domain, RType.AAAA)
+        ipv6: Optional[List[Record[AAAA]]] = await self.cache.get(domain, RType.AAAA)
         if ipv6:
             ips = [str(r.content.ip) for r in ipv6]
             return random.choice(ips)
         return domain.decode()
 
-    def resolve(self, domain: bytes, rtype: RType) -> Optional[List[Answer]]:
+    async def resolve(self, domain: bytes, rtype: RType) -> Optional[List[Answer]]:
         """
         lookup the associated record with recursive lookup
 
@@ -188,7 +190,7 @@ class Resolver(Backend):
         :param rtype:  record type to retrieve for domain
         :return:       list of associated answers (if found)
         """
-        answers = self.cache.get(domain, rtype)
+        answers = await self.cache.get(domain, rtype)
         if answers:
             now = datetime.now()
             return [r.to_answer(domain, now) for r in answers]
@@ -197,11 +199,11 @@ class Resolver(Backend):
         sock.settimeout(5)
 
         names    = []
-        server   = self.get_closest_ns(domain)
+        server   = await self.get_closest_ns(domain)
         question = Question(domain, rtype)
         message  = build_request(question)
         while True:
-            host = self.get_host(server)
+            host = await self.get_host(server)
             addr = (host, 53)
 
             sock.sendto(message.pack(), addr)
@@ -211,7 +213,7 @@ class Resolver(Backend):
 
             raw_answers = res.answers + res.authority + res.additional
             filtered    = [a for a in raw_answers if isinstance(a, Answer)]
-            self.cache.put_answers(filtered)
+            await self.cache.put_answers(filtered)
 
             valid   = []
             servers = []
@@ -234,24 +236,24 @@ class Resolver(Backend):
         sock.close()
         if names:
             domain  = names[-1].content.name
-            records = self.resolve(domain, rtype)
+            records = await self.resolve(domain, rtype)
             if records is not None:
                 records.insert(0, names[-1])
                 return records
         return None
 
-    def is_authority(self, domain: bytes) -> bool:
+    async def is_authority(self, domain: bytes) -> bool:
         if self.backend is not None:
-            return self.backend.is_authority(domain)
+            return await self.backend.is_authority(domain)
         return False
 
-    def get_answers(self, domain: bytes, rtype: RType) -> Answers:
+    async def get_answers(self, domain: bytes, rtype: RType) -> Answers:
         if self.backend is not None:
-            answers = self.backend.get_answers(domain, rtype)
+            answers = await self.backend.get_answers(domain, rtype)
             if answers.answers or answers.rcode is not None:
                 return answers
         try:
-            r_answers = self.resolve(domain, rtype)
+            r_answers = await self.resolve(domain, rtype)
         except DnsError as err:
             return Answers([], self.source, rcode=err.rcode)
         return Answers(r_answers or [], self.source)
