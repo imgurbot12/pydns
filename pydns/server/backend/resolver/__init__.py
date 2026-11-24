@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 import socket
 from typing import (
     ClassVar, Dict, Generic, List, Optional, Protocol, TypeVar, Union, cast)
-from warnings import deprecated
+from typing_extensions import deprecated
 
 from pyderive import dataclass
 
