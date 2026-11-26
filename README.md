@@ -36,14 +36,18 @@ print(req)
 Client
 
 ```python
+import asyncio
 from pydns import Question, RType
 from pydns.client import UdpClient
 
 client = UdpClient([('8.8.8.8', 53)])
 
-query = Question(b'www.google.com', RType.AAAA)
-res   = client.query(query)
-print(res)
+async def main():
+    query = Question(b'www.google.com', RType.AAAA)
+    res   = await client.query(query)
+    print(res)
+
+asyncio.run(main())
 ```
 
 Simple Server
