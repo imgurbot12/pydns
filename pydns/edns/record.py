@@ -1,5 +1,5 @@
 """
-EDNS OPT Answer Varient Implementation
+EDNS OPT Answer Variant Implementation
 """
 from typing import Optional
 from typing_extensions import Annotated, Self

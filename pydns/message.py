@@ -76,7 +76,7 @@ class Message:
     def unpack(cls, raw: bytes,
         ctx: Optional[Context] = None, source: Optional[str] = None) -> Self:
         """
-        unpack serialized bytes into deserialized message object
+        Unpack serialized bytes into deserialized message object
 
         :param raw:    raw byte buffer
         :param ctx:    deserialization context object

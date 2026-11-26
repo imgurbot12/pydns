@@ -26,7 +26,7 @@ __all__ = [
 
 def new_message_id() -> int:
     """
-    generate a new valid id for a dns message packet
+    Generate a new valid id for a DNS message packet
 
     :return: new valid message-id integer
     """
@@ -34,10 +34,7 @@ def new_message_id() -> int:
 
 def build_request(*questions: Question) -> Message:
     """
-    build query request message from question
-
-    :param questions: list of questions to include in request
-    :return:          request message
+    Build query request message from question
     """
     mid   = new_message_id()
     flags = Flags(qr=QR.Question, op=OpCode.Query)
@@ -50,7 +47,7 @@ class BaseClient(Protocol):
     @abstractmethod
     async def request(self, msg: Message) -> Message:
         """
-        Send request and proces recieved response
+        Send request and process received response
 
         :param msg: dns request  message
         :return:    dns response message

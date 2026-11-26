@@ -19,6 +19,14 @@ P = TypeVar('P', bound=Union[TcpAsyncClient, UdpAsyncClient])
 
 #** Functions **#
 
+def timeout_error(
+    host: str, req: Message, timeout: Optional[float]) -> TimeoutError:
+    """
+    Generate a more descriptive timeout error
+    """
+    quest = ', '.join([f'{q.name} ({q.qtype.name})' for q in req.questions])
+    return TimeoutError(f'{host} timed out on {quest} after {timeout}s')
+
 async def tcp_request(
     client: TcpAsyncClient,
     req:    Message,
@@ -27,17 +35,19 @@ async def tcp_request(
     """
     Send DNS request using async TCP client
     """
-    # send request
     data = req.pack()
     data = len(data).to_bytes(2, 'big') + data
-    await client.send(data)
-    # receive size of response
-    sizeb = await client.recv(2)
-    size  = int.from_bytes(sizeb, 'big')
-    # read data from size
-    data = await client.recv(size)
     addr = raddr or client.socket.getpeername()
-    return Message.unpack(data, source=addr[0])
+    try:
+        await client.send(data)
+        # receive size of response
+        sizeb = await client.recv(2)
+        size  = int.from_bytes(sizeb, 'big')
+        # read data from size
+        data = await client.recv(size)
+        return Message.unpack(data, source=addr[0])
+    except asyncio.TimeoutError:
+        raise timeout_error(addr[0], req, client.timeout) from None
 
 #** Classes **#
 
@@ -99,13 +109,14 @@ class UdpClient(Client[UdpAsyncClient]):
     async def request(self, msg: Message, addr: Optional[RawAddr] = None) -> Message:
         async with self.pool.reserve(
             discard_on=(asyncio.TimeoutError, )) as client:
-            # send request
             addr = addr or self.pickaddr()
             data = msg.pack()
-            await client.sendto(data, addr)
-            # receive response
-            data, _ = await client.recvfrom(self.block_size)
-            return Message.unpack(data, source=addr[0])
+            try:
+                await client.sendto(data, addr)
+                data, _ = await client.recvfrom(self.block_size)
+                return Message.unpack(data, source=addr[0])
+            except asyncio.TimeoutError:
+                raise timeout_error(addr[0], msg, client.timeout) from None
 
 class TcpClient(Client[TcpAsyncClient]):
     """
@@ -132,7 +143,7 @@ class HybridClient(UdpClient):
         addr = addr or self.pickaddr()
         try:
             return await super().request(msg, addr)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             async with TcpAsyncClient(self.timeout) as client:
                 await client.connect(addr)
                 return await tcp_request(client, msg, addr)

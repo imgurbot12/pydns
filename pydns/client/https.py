@@ -1,7 +1,6 @@
 """
 Web HTTPS Based DNS Client
 """
-from urllib.request import Request, urlopen
 from typing import Optional
 
 from httpx import AsyncClient

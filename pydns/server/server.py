@@ -1,7 +1,7 @@
 """
 Simple and Extensible DNS Server Implementation
 """
-from enum import IntEnum
+import asyncio
 from logging import Logger, getLogger
 from typing import Optional
 
@@ -19,13 +19,6 @@ from ..exceptions import DnsError, NotImplemented
 __all__ = ['Server']
 
 #** Classes **#
-
-class Mode(IntEnum):
-    """allowed runtime modes to run dns server"""
-    SYNC           = 1
-    ASYNC          = 2
-    THREADED       = 3
-    THREADED_ASYNC = 4
 
 @dataclass
 class Server(AsyncSession):
@@ -127,6 +120,10 @@ class Server(AsyncSession):
         except DnsError as e:
             msg.flags.rcode = e.rcode
             self.logger.exception(f'{self.addr_str} | captured dns-error')
+        except TimeoutError as e:
+            msg.flags.rcode = RCode.ServerFailure
+            error = e.args[0] if e.args else repr(e)
+            self.logger.error(f'{self.addr_str} | {error}')
         except Exception as e:
             msg.flags.rcode = RCode.ServerFailure
             self.logger.exception(f'{self.addr_str} | captured exception')
