@@ -6,7 +6,6 @@ PyDNS UnitTests
 __all__ = [
     'ClientTests',
     'MessageTests',
-    'ResolverTests',
     'RuleSetTests',
     'StatTests'
 ]
@@ -14,7 +13,6 @@ __all__ = [
 #** Imports **#
 from .client import ClientTests
 from .message import MessageTests
-from .resolver import ResolverTests
 from .ruleset import RuleSetTests
 from .stats import StatTests
 

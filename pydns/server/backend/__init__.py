@@ -18,10 +18,6 @@ __all__ = [
     'Forwarder',
     'MemoryBackend',
 
-    'Resolver',
-    'ResolverCache',
-    'ResolverCacheDB',
-
     'RStatus',
     'BlockMode',
     'RuleEngine',
@@ -93,7 +89,6 @@ class Backend(Protocol):
 from .cache import Cache
 from .forwarder import Forwarder
 from .memory import MemoryBackend
-from .resolver import Resolver, ResolverCache, ResolverCacheDB
 from .ruleset import RStatus, BlockMode, RuleEngine, RuleBackend, RuleEngineDB
 from .single import SingleFlight
 from .stats import Stats, StatStorage, StatStoreDB, StatBackend

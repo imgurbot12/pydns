@@ -9,14 +9,13 @@ from typing import ClassVar, Dict, List, Optional, Set
 
 from . import Answers, Backend, RType, Answer
 from .memory import MemoryBackend
-from .resolver import Resolver
 from .ruleset import RuleBackend
 
 #** Variables **#
 __all__ = ['Cache']
 
 #: default set of other backend sources to ignore
-IGNORE = {Resolver.source, RuleBackend.source, MemoryBackend.source}
+IGNORE = {RuleBackend.source, MemoryBackend.source}
 
 #** Classes **#
 
