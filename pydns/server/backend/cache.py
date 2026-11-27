@@ -29,7 +29,7 @@ class CacheRecord:
         """
         Calculate expiration-time and last-accessed time
         """
-        ttl = min(a.ttl for a in self.answers)
+        ttl = min(a.ttl for a in answers)
         ttl = min(ttl, expiration) if expiration else ttl
         now = time.time()
         self.answers  = answers
