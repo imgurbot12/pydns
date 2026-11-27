@@ -46,10 +46,11 @@ class Server(AsyncSession):
                 more = await self.backend.get_answers(q.name, RType.SOA)
                 answers.answers = [*answers.answers, *more.answers]
             # report and assign answers
+            src  = answers.source_label or answers.source
             code = f' code={answers.rcode.name}' if answers.rcode else ''
             self.logger.info(
                 f'{self.addr_str} | {q.name!r} {q.qtype.name} '
-                f'answers={len(answers.answers)} src={answers.source}{code}')
+                f'answers={len(answers.answers)} src={src}{code}')
             for answer in answers.answers:
                 if answer.rtype == RType.SOA:
                     msg.authority.append(answer)

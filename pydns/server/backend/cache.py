@@ -3,8 +3,8 @@ Backend Extension to support In-Memory Answer Caching
 """
 import time
 import math
+from asyncio import Lock
 from logging import Logger, getLogger
-from threading import Lock
 from typing import ClassVar, Dict, List, Optional, Set
 
 from pyderive import InitVar, dataclass, field
@@ -92,18 +92,18 @@ class Cache(Backend):
             return self.authorities[domain]
         # query backend and then permanently cache authority result
         authority = await self.backend.is_authority(domain)
-        with self.mutex:
+        async with self.mutex:
             if len(self.authorities) >= self.maxsize:
                 self.authorities.clear()
             self.authorities[domain] = authority
         return authority
 
-    def get_cache(self, domain: bytes, rtype: RType) -> Optional[Answers]:
+    async def get_cache(self, domain: bytes, rtype: RType) -> Optional[Answers]:
         """
         Retrieve from cache directly if present
         """
-        key = f'{domain!r}->{rtype.name}'
-        with self.mutex:
+        key = f'{domain}:{rtype.name}'
+        async with self.mutex:
             if key not in self.cache:
                 return None
             record = self.cache[key]
@@ -113,15 +113,15 @@ class Cache(Backend):
                 return None
             return Answers(record.answers.copy(), self.source)
 
-    def set_cache(self, domain: bytes, rtype: RType, answers: Answers):
+    async def set_cache(self, domain: bytes, rtype: RType, answers: Answers):
         """
         Save the given answers to cache for the specified domain/rtype
         """
         if not answers.answers:
             self.logger.debug(f'cannot cache empty record for {domain!r}')
             return
-        key = f'{domain!r}->{rtype.name}'
-        with self.mutex:
+        key = f'{domain}:{rtype.name}'
+        async with self.mutex:
             if len(self.cache) >= self.maxsize:
                 self.logger.debug(f'maxsize: {self.maxsize} exceeded. clearing cache!')
                 self.cache.clear()
@@ -132,7 +132,7 @@ class Cache(Backend):
         Retrieve answers from cache before checking supplied backend
         """
         # attempt to retrieve from cache if it exists
-        answers = self.get_cache(domain, rtype)
+        answers = await self.get_cache(domain, rtype)
         if answers is not None:
             return answers
         # complete standard lookup for answers
@@ -144,5 +144,5 @@ class Cache(Backend):
             return answers
         # save results to cache and return results
         if answers is not None and answers.answers:
-            self.set_cache(domain, rtype, answers)
+            await self.set_cache(domain, rtype, answers)
         return answers

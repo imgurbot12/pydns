@@ -28,6 +28,8 @@ __all__ = [
     'RuleBackend',
     'RuleEngineDB',
 
+    'SingleFlight',
+
     'Stats',
     'StatStorage',
     'StatStoreDB',
@@ -41,15 +43,16 @@ class Answers:
     """
     Backend DNS Answers Return Type
     """
-    answers:   List[Answer]
-    source:    str
-    rcode:     Optional[RCode] = None
-    forwarder: Optional[str]   = None
+    answers:      List[Answer]
+    source:       str
+    rcode:        Optional[RCode] = None
+    forwarder:    Optional[str]   = None
+    source_label: Optional[str]   = None
 
 @runtime_checkable
 class Backend(Protocol):
     """
-    BaseClass Interface Definition for Backend Implementations
+    Base-class Interface Definition for Backend Implementations
     """
     source: ClassVar[str]
     recursion_available: bool = False
@@ -86,4 +89,5 @@ from .forwarder import Forwarder
 from .memory import MemoryBackend
 from .resolver import Resolver, ResolverCache, ResolverCacheDB
 from .ruleset import RStatus, BlockMode, RuleEngine, RuleBackend, RuleEngineDB
+from .single import SingleFlight
 from .stats import Stats, StatStorage, StatStoreDB, StatBackend
