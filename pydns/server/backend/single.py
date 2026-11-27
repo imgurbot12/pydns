@@ -1,6 +1,7 @@
 """
 Single Flight Pattern Backend Abstraction
 """
+from copy import deepcopy
 from typing import ClassVar, Optional, TypeVar
 
 from pyserve.utils import FlightSrc, SingleFlight as FlightManager
@@ -43,6 +44,7 @@ class SingleFlight(Backend):
         task         = self.backend.get_answers(domain, rtype)
         answers, src = await self.manager.do_labeled(key, task)
         if self.wrap_label and src == FlightSrc.FOLLOWER:
+            answers = deepcopy(answers)
             answers.source_label = f'{self.source}({answers.source})'
         return answers
 
