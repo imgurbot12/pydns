@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 
 from . import Stats, StatStorage, date_now
-from .._sql import Database, stats_db
+from .._sql import stats_db
 from .... import RType
 
 #** Variables **#

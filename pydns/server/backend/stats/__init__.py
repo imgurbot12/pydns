@@ -5,7 +5,7 @@ from abc import abstractmethod
 from datetime import datetime, timedelta
 from typing import ClassVar, Dict, List, Optional, Protocol
 
-from pyderive import dataclass, field
+from pyderive import field
 from pyderive.extensions.serde import Serde
 
 from .. import Answers, Backend, RuleBackend
@@ -88,15 +88,17 @@ class StatStorage(Protocol):
         """
         raise NotImplementedError
 
-@dataclass(slots=True, repr=False)
 class StatBackend(Backend):
     """
     Statistics Calculator Backend
     """
+    __slots__ = ('backend', 'storage')
+
     source: ClassVar[str] = 'Statistics'
 
-    backend: Backend
-    storage: StatStorage
+    def __init__(self, backend: Backend, storage: StatStorage):
+        self.backend = backend
+        self.storage = storage
 
     async def stats(self, span: timedelta = timedelta(hours=24)) -> List[Stats]:
         """
@@ -109,6 +111,9 @@ class StatBackend(Backend):
         Determine if answer should be considered blocked
         """
         return answers.source in {RuleBackend.source, }
+
+    def recursion_available(self) -> bool:
+        return False
 
     async def is_authority(self, domain: bytes) -> bool:
         """

@@ -3,7 +3,7 @@ In-Memory Backend Implementation
 """
 import ipaddress
 from fnmatch import fnmatch
-from typing import Any, ClassVar, Dict, List, Set, Union
+from typing import Any, ClassVar, Dict, List, Optional, Set
 from typing_extensions import TypedDict
 
 from . import Backend, Answers, Answer, RType
@@ -15,8 +15,6 @@ __all__ = ['MemoryBackend']
 
 #: type definition for in-memory record database
 RecordDB = Dict[bytes, Dict[RType, List[Answer]]]
-
-RecordEntries = List[Union[Content, 'RecordDict']]
 
 RawRecordEntries = Dict[str, List[Dict[str, Any]]]
 
@@ -31,7 +29,6 @@ class MemoryBackend(Backend):
     Simple In-Memory Backend for DNS Records
     """
     source: ClassVar[str] = 'MemDB'
-    recursion_available   = False
 
     __slots__ = ('records', 'authorities', 'default_ttl', 'allow_wildcards')
 
@@ -41,44 +38,33 @@ class MemoryBackend(Backend):
         self.default_ttl:     int        = default_ttl
         self.allow_wildcards: bool       = False
 
-    def add_answer(self, domain: bytes, answer: Answer):
+    def add_answer(self, answer: Answer):
         """
         Add additional domain answer into in-memory db
         """
         rtype = answer.rtype
-        self.records.setdefault(domain, {})
-        self.records[domain].setdefault(rtype, [])
-        self.records[domain][rtype].append(answer)
-        self.allow_wildcards = self.allow_wildcards or b'*' in domain
+        self.records.setdefault(answer.name, {})
+        self.records[answer.name].setdefault(rtype, [])
+        self.records[answer.name][rtype].append(answer)
+        self.allow_wildcards = self.allow_wildcards or b'*' in answer.name
 
-    def save_domain(self, domain: bytes, records: RecordEntries):
+    def save_domain(self,
+        domain: bytes, content: Content, ttl: Optional[int] = None) -> None:
         """
-        Save additional records into in-memory db
-
-        :param domain:  dns domain to save records for
-        :param records: list of record objects with ttls
+        Save a record into in-memory db
         """
         assert isinstance(domain, bytes), 'domain must be bytes'
-        # convert dictionary records into valid dns answer objects
         self.authorities.add(domain)
-        for record in records:
-            # convert record into content and ttl
-            if isinstance(record, Content):
-                ttl     = self.default_ttl
-                content = record
-            else:
-                ttl     = record.get('ttl', self.default_ttl)
-                content = record['content']
-            # add standard record
-            answer = Answer(domain, ttl, content)
-            self.add_answer(domain, answer)
-            # reverse ip records for PTR lookups
-            ipaddr = getattr(content, 'ip', None)
-            if ipaddr is not None:
-                ip   = ipaddress.ip_address(ipaddr)
-                name = ip.reverse_pointer.encode()
-                answer = Answer(name, ttl, PTR(domain))
-                self.add_answer(name, answer)
+        ttl    = ttl or self.default_ttl
+        answer = Answer(domain, ttl, content)
+        self.add_answer(answer)
+        # reverse ip records for PTR lookups
+        ipaddr = getattr(content, 'ip', None)
+        if ipaddr is not None:
+            ip   = ipaddress.ip_address(ipaddr)
+            name = ip.reverse_pointer.encode()
+            answer = Answer(name, ttl, PTR(domain))
+            self.add_answer(answer)
 
     def save_domain_dict(self, domain: bytes, entries: RawRecordEntries):
         """
@@ -87,15 +73,16 @@ class MemoryBackend(Backend):
         :param domain:  dns domain to save records for
         :param records: list of record objects with ttls
         """
-        records = [] #type: RecordEntries
         for rname, r_entries in entries.items():
             rtype  = RType[rname]
             ctype  = get_ctype(rtype)
             for entry in r_entries:
                 ttl     = entry.pop('ttl', self.default_ttl)
                 content = ctype(**entry)
-                records.append(RecordDict(ttl=ttl, content=content))
-        self.save_domain(domain, records)
+                self.save_domain(domain, content, ttl)
+
+    def recursion_available(self) -> bool:
+        return False
 
     async def is_authority(self, domain: bytes) -> bool:
         """

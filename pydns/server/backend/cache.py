@@ -7,8 +7,6 @@ from asyncio import Lock
 from logging import Logger, getLogger
 from typing import ClassVar, Dict, List, Optional, Set
 
-from pyderive import InitVar, dataclass, field
-
 from . import Answers, Backend, RType, Answer
 from .memory import MemoryBackend
 from .resolver import Resolver
@@ -22,23 +20,20 @@ IGNORE = {Resolver.source, RuleBackend.source, MemoryBackend.source}
 
 #** Classes **#
 
-@dataclass(slots=True)
 class CacheRecord:
     """
     Record Entry for In-Memory Cache
     """
-    answers:    List[Answer]
-    expiration: InitVar[int]
-    expires:    float = field(init=False)
-    accessed:   float = field(init=False)
+    __slots__ = ('answers', 'expires', 'accessed')
 
-    def __post_init__(self, expiration: int): #type: ignore
+    def __init__(self, answers: List[Answer], expiration: int):
         """
         Calculate expiration-time and last-accessed time
         """
         ttl = min(a.ttl for a in self.answers)
         ttl = min(ttl, expiration) if expiration else ttl
         now = time.time()
+        self.answers  = answers
         self.expires  = now + ttl
         self.accessed = now
 
@@ -59,29 +54,40 @@ class CacheRecord:
         self.accessed = now
         return False
 
-@dataclass(slots=True, repr=False)
 class Cache(Backend):
     """
     In-Memory Cache Extension for Backend Results
     """
+    __slots__ = (
+        'backend', 'expiration', 'maxsize', 'ignore_rtypes', 'ignore_sources',
+        'logger', 'mutex', 'cache', 'authorities')
+
     source: ClassVar[str] = 'Cache'
 
-    backend:        Backend
-    expiration:     int        = 30
-    maxsize:        int        = 10000
-    ignore_rtypes:  Set[RType] = field(default_factory=lambda: {RType.SOA, })
-    ignore_sources: Set[str]   = field(default_factory=lambda: IGNORE)
-    logger:         Logger     = field(default_factory=lambda: getLogger('pydns'))
+    cache:       Dict[str, CacheRecord]
+    authorities: Dict[bytes, bool]
 
-    mutex:       Lock                   = field(default_factory=Lock, init=False)
-    cache:       Dict[str, CacheRecord] = field(default_factory=dict, init=False)
-    authorities: Dict[bytes, bool]      = field(default_factory=dict, init=False)
-
-    recursion_available: bool = field(default=False, init=False)
-
-    def __post_init__(self):
-        self.logger              = self.logger.getChild('cache')
+    def __init__(self,
+        backend:        Backend,
+        expiration:     int        = 30,
+        maxsize:        int        = 10000,
+        ignore_rtypes:  Optional[Set[RType]] = None,
+        ignore_sources: Optional[Set[str]]   = None,
+        logger:         Optional[Logger]     = None,
+    ):
+        self.backend             = backend
+        self.expiration          = expiration
+        self.maxsize             = maxsize
+        self.ignore_rtypes       = ignore_rtypes or {RType.SOA, }
+        self.ignore_sources      = ignore_sources or IGNORE
+        self.logger              = logger or getLogger('pydns.cache')
+        self.mutex               = Lock()
+        self.cache               = {}
+        self.authorities         = {}
         self.recursion_available = self.backend.recursion_available
+
+    def recursion_available(self) -> bool:
+        return self.backend.recursion_available()
 
     async def is_authority(self, domain: bytes) -> bool:
         """

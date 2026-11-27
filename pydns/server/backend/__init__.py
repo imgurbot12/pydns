@@ -55,7 +55,13 @@ class Backend(Protocol):
     Base-class Interface Definition for Backend Implementations
     """
     source: ClassVar[str]
-    recursion_available: bool = False
+
+    @abstractmethod
+    def recursion_available(self) -> bool:
+        """
+        Determine if recursion is available for this backend
+        """
+        raise NotImplementedError
 
     @abstractmethod
     async def is_authority(self, domain: bytes) -> bool:

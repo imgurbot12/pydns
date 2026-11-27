@@ -3,8 +3,6 @@ Backend Recursive Client-Forwarder Extension
 """
 from typing import ClassVar
 
-from pyderive import dataclass
-
 from . import Answers, Backend
 from ...client import BaseClient
 from ... import RType, Answer, Question
@@ -14,16 +12,20 @@ __all__ = ['Forwarder']
 
 #** Classes **#
 
-@dataclass(slots=True, repr=False)
 class Forwarder(Backend):
     """
     Recursive DNS-Client Lookup Forwarder when Backend returns no Results
     """
-    source: ClassVar[str] = 'Forwarder'
-    recursion_available: ClassVar[bool] = True #type: ignore
+    __slots__ = ('backend', 'client')
 
-    backend: Backend
-    client:  BaseClient
+    source: ClassVar[str] = 'Forwarder'
+
+    def __init__(self, backend: Backend, client: BaseClient):
+        self.backend = backend
+        self.client  = client
+
+    def recursion_available(self) -> bool:
+        return True
 
     async def is_authority(self, domain: bytes) -> bool:
         return await self.backend.is_authority(domain)

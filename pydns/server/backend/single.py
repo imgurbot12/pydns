@@ -24,16 +24,19 @@ class SingleFlight(Backend):
     """
     source: ClassVar[str] = 'SingleFlight'
 
-    __slots__ = ('backend', 'manager', 'wrap_label')
+    __slots__ = ('backend', 'manager', 'wrap_label', )
 
     def __init__(self,
         backend:    Backend,
         manager:    Optional[FlightManager] = None,
         wrap_label: Optional[bool]          = True,
     ):
-        self.backend    = backend
-        self.manager    = manager or FlightManager()
-        self.wrap_label = wrap_label
+        self.backend             = backend
+        self.manager             = manager or FlightManager()
+        self.wrap_label          = wrap_label
+
+    def recursion_available(self) -> bool:
+        return self.backend.recursion_available()
 
     async def is_authority(self, domain: bytes) -> bool:
         task = self.backend.is_authority(domain)

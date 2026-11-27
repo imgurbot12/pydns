@@ -101,7 +101,7 @@ class Server(AsyncSession):
             return
         # update flags for response
         msg.flags.qr = QR.Response
-        msg.flags.recursion_available = self.backend.recursion_available
+        msg.flags.recursion_available = self.backend.recursion_available()
         try:
             # add standard empty EDNS response when present
             if any(a.rtype == RType.OPT for a in msg.additional):

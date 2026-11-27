@@ -113,25 +113,29 @@ class RuleEngine(Protocol):
             return rule
         return await self.match_pattern(domain)
 
-@dataclass(slots=True, repr=False)
 class RuleBackend(Backend):
     """
     Custom Rule Engine Backend for Blacklisting Unwanted Domains
     """
+    __slots__ = ('backend', 'whitelist', 'blacklist', 'engine', 'block_mode')
+
     source: ClassVar[str] = 'Blacklist'
 
-    backend:    Backend
-    blacklist:  Set[bytes]           = field(default_factory=set)
-    whitelist:  Set[bytes]           = field(default_factory=set)
-    engine:     Optional[RuleEngine] = None
-    block_mode: BlockMode            = BlockMode.NODATA
+    def __init__(self,
+        backend:    Backend,
+        blacklist:  Optional[Set[bytes]] = None,
+        whitelist:  Optional[Set[bytes]] = None,
+        engine:     Optional[RuleEngine] = None,
+        block_mode: BlockMode            = BlockMode.NODATA,
+    ):
+        self.backend             = backend
+        self.whitelist           = (whitelist or set())
+        self.blacklist           = (blacklist or set()) - self.whitelist
+        self.engine              = engine
+        self.block_mode          = block_mode
 
-    blacklist_count: int = field(init=False, default=0)
-
-    def __post_init__(self):
-        self.recursion_available = self.backend.recursion_available
-        self.blacklist -= self.whitelist
-        self.blacklist_count  = len(self.blacklist)
+    def recursion_available(self) -> bool:
+        return self.backend.recursion_available()
 
     async def is_authority(self, domain: bytes) -> bool:
         return await self.backend.is_authority(domain)
@@ -181,8 +185,9 @@ class RuleBackend(Backend):
         """
         Count number of blacklisted items in rule backend
         """
-        blacklisted = await self.engine.count_blocked() + self.blacklist_count \
-            if self.engine is not None else len(self.blacklist)
+        blacklisted = len(self.blacklist)
+        if self.engine is not None:
+            blacklisted += await self.engine.count_blocked()
         return blacklisted + await self.backend.count_blocked()
 
 #** Imports **#

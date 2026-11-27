@@ -146,6 +146,9 @@ class Resolver(Backend):
         self.cache   = cache or ResolverCacheDB('./rcache.db')
         self.servers = root_servers
 
+    def recursion_available(self) -> bool:
+        return True
+
     async def get_closest_ns(self, domain: bytes) -> bytes:
         """
         get closest associated nameserver with the given domain
